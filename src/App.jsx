@@ -367,9 +367,9 @@ export default function App() {
   useEffect(()=>{
     const tryLoad = async () => {
       try {
-        const r = await fetch("/data/moyuum_products.json");
-        if (!r.ok) throw new Error("fallback");
-        return await r.json();
+         const r = await fetch(`${import.meta.env.BASE_URL}data/moyuum_products.json`);
+         if (!r.ok) throw new Error("fallback");
+         return await r.json();
       } catch {
         const r2 = await fetch("/data/moyuum_products_by_barcode.json");
         if (!r2.ok) throw new Error("no db");
@@ -581,8 +581,8 @@ export default function App() {
 
           <div className="grid" style={{marginTop:12}}>
             {recs.map(p => {
-              const local1 = p.Barcode ? `/images/${p.Barcode}_1.jpg` : "";
-              const local2 = p.Barcode ? `/images/${p.Barcode}_2.jpg` : "";
+              const local1 = `${import.meta.env.BASE_URL}images/${p.Barcode}_1.jpg` : "";
+              const local2 = `${import.meta.env.BASE_URL}images/${p.Barcode}_2.jpg` : "";
               const srcs1 = [p.Image1, local1].filter(Boolean);
               const srcs2 = [p.Image2, local2].filter(Boolean);
 
