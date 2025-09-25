@@ -1,8 +1,9 @@
-// vite.config.js
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 
+// 리포지토리명이 'moyuum_recommender' 라면:
 export default defineConfig({
-  plugins: [react()],
-  base: '/moyuum_recommender/', // ← 저장소 이름과 정확히 일치
+  base: '/moyuum_recommender/',
+  build: {
+    outDir: 'dist'
+  }
 })
