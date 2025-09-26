@@ -369,7 +369,7 @@ export default function App() {
   const tryLoad = async () => {
     try {
       const r = await fetch(`${BASE}data/moyuum_products.json`);
-      if (!r.ok) throw new Error("fallback");
+       if (!r.ok) throw new Error("fallback");
       return await r.json();
     } catch {
       const r2 = await fetch(`${BASE}data/moyuum_products_by_barcode.json`);
@@ -583,8 +583,9 @@ export default function App() {
 
           <div className="grid" style={{marginTop:12}}>
             {recs.map(p => {
-              const local1 = `${import.meta.env.BASE_URL}images/${p.Barcode}_1.jpg` : "";
-              const local2 = `${import.meta.env.BASE_URL}images/${p.Barcode}_2.jpg` : "";
+              const base = import.meta.env.BASE_URL || '/';
+              const local1 = p.Barcode ? `${base}images/${p.Barcode}_1.jpg` : "";
+              const local2 = p.Barcode ? `${base}images/${p.Barcode}_2.jpg` : "";
               const srcs1 = [p.Image1, local1].filter(Boolean);
               const srcs2 = [p.Image2, local2].filter(Boolean);
 
