@@ -365,17 +365,19 @@ export default function App() {
 
   // DB 로딩 & 정규화
   useEffect(()=>{
-    const tryLoad = async () => {
-      try {
-         const r = await fetch(`${import.meta.env.BASE_URL}data/moyuum_products.json`);
-         if (!r.ok) throw new Error("fallback");
-         return await r.json();
-      } catch {
-        const r2 = await fetch("/data/moyuum_products_by_barcode.json");
-        if (!r2.ok) throw new Error("no db");
-        return await r2.json();
-      }
-    };
+  const BASE = import.meta.env.BASE_URL;   // ← 추가
+  const tryLoad = async () => {
+    try {
+      const r = await fetch(`${BASE}data/moyuum_products.json`);
+      if (!r.ok) throw new Error("fallback");
+      return await r.json();
+    } catch {
+      const r2 = await fetch(`${BASE}data/moyuum_products_by_barcode.json`);
+      if (!r2.ok) throw new Error("no db");
+      return await r2.json();
+    }
+  };
+     
     tryLoad().then(rows=>{
       const cleaned = rows.map(r=>({
         ...r,
