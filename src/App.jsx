@@ -365,7 +365,7 @@ export default function App() {
 
   // DB 로딩 & 정규화
   useEffect(()=>{
-  const BASE = import.meta.env.BASE_URL;   // ← 추가
+  const base = import.meta.env.BASE_URL || '/';
   const tryLoad = async () => {
     try {
       const r = await fetch(`${BASE}data/moyuum_products.json`);
