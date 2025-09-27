@@ -786,7 +786,7 @@ export default function App() {
             <div className="contactCard">
               <img src={TG_BANNER} alt="Telegram QR / Banner"/>
               <a className="contactLink" href={TG_LINK} target="_blank" rel="noreferrer">
-                Telegram Group: t.me/PrekorMoyuumKhmer
+                Telegram Channel: t.me/PrekorMoyuumKhmer
               </a>
             </div>
             <div className="contactCard">
