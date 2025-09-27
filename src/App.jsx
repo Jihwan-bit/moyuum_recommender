@@ -782,11 +782,16 @@ export default function App() {
           <div className="contactGrid">
             <div className="opt column" style={{alignItems:'center', textAlign:'center'}}>
               <strong>{t.telegram}</strong>
-              <a href={TELEGRAM_URL} target="_blank" rel="noreferrer" className="btn" style={{textDecoration:'none'}}>
+              <a href={https://t.me/PrekorMoyuumKhmer} target="_blank" rel="noreferrer" className="btn" style={{textDecoration:'none'}}>
                 {t.openLink}
               </a>
-              <img src={qrSrc(TELEGRAM_URL)} alt="Telegram QR" width={220} height={220}
-                   style={{border:'1px solid #e2e8f0', borderRadius:12, background:'#fff'}}/>
+              <a href={TELEGRAM_URL} target="_blank" rel="noreferrer" style={{display:'block'}}>
+                <img
+                 src={TG_BANNER}
+                 alt="Telegram"
+                 style={{maxWidth:240, width:'100%', border:'1px solid #e2e8f0', borderRadius:12, background:'#fff'}}
+                 />
+              </a>
             </div>
 
             <div className="opt column" style={{alignItems:'center', textAlign:'center'}}>
