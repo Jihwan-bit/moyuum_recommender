@@ -28,8 +28,7 @@ jobs:
           cache: npm
 
       - name: Install deps
-        run: |
-          npm ci || npm i --no-audit --no-fund
+        run: npm i --no-audit --no-fund
 
       - name: Build
         run: npm run build
