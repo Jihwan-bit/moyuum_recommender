@@ -37,12 +37,13 @@ const GlobalStyles = () => (
     .caption{font-size:12px;color:#64748b}
     .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
     .summaryItem{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:10px}
-    .empty{padding:16px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;text-align:center}
     .imgdebug{font-size:11px;color:#64748b;margin-top:4px}
     .imgdebug a{color:#5b8def;text-decoration:underline}
-    .center{display:flex;align-items:center;justify-content:center}
-    .column{display:flex;flex-direction:column;gap:8px}
-    .contactGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;max-width:640px;margin:0 auto}
+    .contactBox{text-align:center;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}
+    .contactGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:16px;align-items:start}
+    .contactCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fafafa}
+    .contactCard img{width:100%;height:auto;border-radius:8px}
+    .contactLink{display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline}
   `}</style>
 );
 
@@ -101,15 +102,8 @@ const i18n = {
     selectedCount: (n)=>`បានជ្រើស ${n} ធាតុ`,
     invoiceTitle: "វិក័យប័ត្រ",
     invoiceNote: "តម្លៃគិតជាដុល្លារ សម្រាប់ឧត្តមគតិ (VAT/អត្រាប្តូរ បន្ថែមបានពេលក្រោយ)",
-    // contact page
-    thanksTitle: "សូមអរគុណចំពោះការប្រើប្រាស់កម្មវិធី!",
-    thanksBody: "បើមានសំណួរ ឬត្រូវការជំនួយ សូមទំនាក់ទំនងតាម Telegram ឬ Facebook ខាងក្រោម។",
-    contactUs: "ទំនាក់ទំនង",
-    openLink: "បើកតំណ",
-    telegram: "Telegram",
-    facebook: "Facebook",
-    backToInvoice: "ត្រលប់ទៅវិក័យប័ត្រ",
-    finishAndContact: "បញ្ចប់ & ទំនាក់ទំនង",
+    thanks: "សូមអរគុណសម្រាប់ការប្រើប្រាស់កម្មវិធី!",
+    contactLead: "មានសំណួរទៀតទេ? អាចទាក់ទងអ្នកយើងតាម Telegram ឬ Facebook ខាងក្រោម។"
   },
   en: {
     appTitle: "Moyuum Product Recommender (Khmer/English)",
@@ -164,19 +158,12 @@ const i18n = {
     selectedCount: (n)=>`${n} selected`,
     invoiceTitle: "Invoice",
     invoiceNote: "Prices in USD for demo; VAT/exchange can be added later.",
-    // contact page
-    thanksTitle: "Thank you for using our recommender!",
-    thanksBody: "If you have any questions or need support, please reach us on Telegram or Facebook below.",
-    contactUs: "Contact",
-    openLink: "Open link",
-    telegram: "Telegram",
-    facebook: "Facebook",
-    backToInvoice: "Back to Invoice",
-    finishAndContact: "Finish & Contact",
+    thanks: "Thanks for using our recommender!",
+    contactLead: "Questions or feedback? Reach us via Telegram or Facebook below."
   }
 };
 
-/* ========== helpers & mapping ========== */
+/* ========== helpers: normalize & mapping ========== */
 const splitBarcodes = (csv) => {
   if (!csv) return [];
   return String(csv).split(/,\s*/).map(s => s.trim()).filter(Boolean);
@@ -234,12 +221,6 @@ const capacityByAge = (ageStage) => {
   switch (ageStage) { case 1: return 170; case 2: return 170; default: return 270; }
 };
 
-/* ===== contact URLs & QR helper ===== */
-const TELEGRAM_URL = "https://t.me/your_channel_or_bot";
-const FACEBOOK_URL = "https://www.facebook.com/your_page";
-const qrSrc = (u, size = 220) =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(u)}`;
-
 /* ===== display helpers ===== */
 const pickFirst = (row, keys) => {
   for (const k of keys) {
@@ -250,15 +231,18 @@ const pickFirst = (row, keys) => {
   return "";
 };
 
-// robust price parsing
+// 통화기호·천단위 제거 후 안전 파싱
 const parsePrice = (v) => {
   if (v === null || v === undefined) return 0;
   let t = String(v).trim();
   if (!t) return 0;
   t = t.replace(/[^0-9.,-]/g, "");
   if (t.includes(",") && t.includes(".")) {
-    if (t.lastIndexOf(".") > t.lastIndexOf(",")) t = t.replace(/,/g, "");
-    else t = t.replace(/\./g, "").replace(",", ".");
+    if (t.lastIndexOf(".") > t.lastIndexOf(",")) {
+      t = t.replace(/,/g, "");
+    } else {
+      t = t.replace(/\./g, "").replace(",", ".");
+    }
   } else {
     t = t.replace(/,/g, "");
   }
@@ -266,6 +250,7 @@ const parsePrice = (v) => {
   return isNaN(n) ? 0 : n;
 };
 
+// 이름 선택
 const getDisplayName = (row, lang) => {
   const NameKH = pickFirst(row, ["Name(KH.)","Name (KH.)","NameKH","KH Name","Khmer Name","Name"]);
   const NameEN = pickFirst(row, ["Name(EN.)","Name (EN.)","NameEN","EN Name","English Name"]);
@@ -273,6 +258,7 @@ const getDisplayName = (row, lang) => {
   return String(NameEN || NameKH || row.Name || "").trim();
 };
 
+// 용량·수량 표기
 const fmtSizeQty = (row) => {
   const size = pickFirst(row, ["Size","size","Volume","Capacity"]);
   const qty  = pickFirst(row, ["Quantity","Qty","qty","Pack"]);
@@ -282,7 +268,7 @@ const fmtSizeQty = (row) => {
   return a || b || "";
 };
 
-/* ========== 이미지 폴백 ========== */
+/* ========== 이미지 폴백 컴포넌트 ========== */
 const FallbackImg = ({ sources, alt }) => {
   const [idx, setIdx] = useState(0);
   const src = sources[idx] || "";
@@ -439,19 +425,26 @@ function recommend(ans, products) {
 
 /* ========== App ========== */
 export default function App() {
+  // GitHub Pages base (로컬: '/', 배포: '/<repo>/')
+  const base = import.meta.env.BASE_URL || '/';
+
+  // 외부 링크 & 배너 경로 (public/images/*)
+  const TG_LINK = "https://t.me/PrekorMoyuumKhmer";
+  const FB_LINK = "https://www.facebook.com/MoyuumKhmer.kh/";
+  const TG_BANNER = `${base}images/moyuum_khmer_telegram.png`;
+  const FB_BANNER = `${base}images/moyuum_khmer_facebook.png`;
+
   const [lang, setLang] = useState("km");
   const t = i18n[lang];
 
-  const [step, setStep] = useState("q1"); // "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
+  // "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
+  const [step, setStep] = useState("q1");
   const [ans, setAns] = useState({});
   const [db, setDb] = useState(null);
   const [selected, setSelected] = useState([]);
   const invoiceRef = useRef(null);
 
-  // GitHub Pages 호환 경로(prefix)
-  const base = import.meta.env.BASE_URL || "/";
-
-  // DB 로딩 & 정규화 (GitHub Pages: public/data/… 에서 서빙)
+  // DB 로딩 & 정규화 (public/data/*)
   useEffect(()=>{
     const tryLoad = async () => {
       try {
@@ -507,9 +500,9 @@ export default function App() {
 
   const invoice = useMemo(()=> computeInvoice(selected), [selected]);
 
-  // html2canvas: 동적 import(빌드 에러 방지)
   const doExportImage = async () => {
-    const html2canvas = (await import("html2canvas")).default;
+    // html2canvas는 package.json dependencies에 반드시 포함되어야 합니다.
+    const html2canvas = (await import('html2canvas')).default;
     if (!invoiceRef.current) return;
     const canvas = await html2canvas(invoiceRef.current);
     const url = canvas.toDataURL("image/png");
@@ -534,7 +527,7 @@ export default function App() {
 
       <div className="card">
         <h1>{t.appTitle}</h1>
-        <div className="muted">Bilingual survey → <b>review (confirm/edit)</b> → recommendations → cart → invoice → <b>contact</b>.</div>
+        <div className="muted">Bilingual survey → <b>review (confirm/edit)</b> → recommendations → cart → invoice → contact.</div>
       </div>
 
       {/* Q1 */}
@@ -559,8 +552,12 @@ export default function App() {
           {/* 1-1 */}
           <div className="q">1-1) {t.q11_title}</div>
           <div className="grid">
-            {i18n[lang].q11_options.map((label, idx) => (
-              <div key={idx} className={`opt ${ans.ageStage === (idx+1) ? 'selected' : ''}`} onClick={() => setAns({ ...ans, ageStage: (idx + 1) })}>
+            {t.q11_options.map((label, idx) => (
+              <div
+                key={idx}
+                className={`opt ${ans.ageStage === (idx+1) ? 'selected' : ''}`}
+                onClick={() => setAns({ ...ans, ageStage: (idx + 1) })}
+              >
                 {label}
               </div>
             ))}
@@ -617,6 +614,7 @@ export default function App() {
       {step === "review" && (
         <div className="card">
           <h2>{t.reviewTitle}</h2>
+
           <div className="summaryGrid">
             <div className="summaryItem"><b>Q1</b><br/>{ans.purpose===1? t.q1_purpose_1 : ans.purpose===2? t.q1_purpose_2 : '-' }<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
@@ -651,6 +649,7 @@ export default function App() {
           <h2>{t.recsTitle}</h2>
           <div className="muted">{t.selectProducts} · <span className="pill">{i18n[lang].selectedCount(selected.length)}</span></div>
 
+          {/* Answer summary */}
           <div className="card" style={{marginTop:12}}>
             <div className="summaryGrid">
               <div className="summaryItem"><b>1-1</b><br/>{ageText}</div>
@@ -667,7 +666,7 @@ export default function App() {
 
           <div className="grid" style={{marginTop:12}}>
             {recs.map(p => {
-              // 외부 URL 실패 시 로컬 /images/<Barcode>_1.jpg/_2.jpg (GitHub Pages base 포함)
+              // 외부 URL 실패 시 public/images/<Barcode>_1.jpg/_2.jpg 로 폴백
               const local1 = p.Barcode ? `${base}images/${p.Barcode}_1.jpg` : "";
               const local2 = p.Barcode ? `${base}images/${p.Barcode}_2.jpg` : "";
               const srcs1 = [p.Image1, local1].filter(Boolean);
@@ -724,9 +723,7 @@ export default function App() {
 
               <div className="row" style={{justifyContent:'space-between', marginTop:12}}>
                 <button className="btn ghost" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
-                <div className="row" style={{gap:8}}>
-                  <button className="btn" onClick={()=> setStep("invoice")}>{t.toInvoice}</button>
-                </div>
+                <button className="btn" onClick={()=> setStep("invoice")}>{t.toInvoice}</button>
               </div>
             </div>
           )}
@@ -758,6 +755,14 @@ export default function App() {
               <div>Subtotal: <strong><Price v={invoice.subtotal}/></strong></div>
               <div>Total: <strong><Price v={invoice.total}/></strong></div>
             </div>
+            {invoice.details.length>0 && (
+              <div style={{marginTop:8}}>
+                <div className="caption">Promotion Details</div>
+                <ul>
+                  {invoice.details.map((d,i)=>(<li key={i}>{d.name}: {d.note}</li>))}
+                </ul>
+              </div>
+            )}
             <div className="muted" style={{marginTop:6}}>{t.invoiceNote}</div>
           </div>
 
@@ -765,48 +770,35 @@ export default function App() {
             <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
             <div className="row" style={{gap:8}}>
               <button className="btn ghost" onClick={doExportImage}>{t.exportInvoice}</button>
-              <button className="btn" onClick={()=> setStep("contact")}>{t.finishAndContact}</button>
+              <button className="btn" onClick={()=> setStep("contact")}>Contact →</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CONTACT (Thank-you & links + QR) */}
+      {/* CONTACT */}
       {step === "contact" && (
-        <div className="card">
-          <h2 style={{textAlign:'center', marginTop:0}}>{t.thanksTitle}</h2>
-          <div className="muted" style={{textAlign:'center', marginBottom:16}}>
-            {t.thanksBody}
-          </div>
+        <div className="card contactBox">
+          <h2>{t.thanks}</h2>
+          <div className="muted" style={{marginTop:4}}>{t.contactLead}</div>
 
           <div className="contactGrid">
-            <div className="opt column" style={{alignItems:'center', textAlign:'center'}}>
-              <strong>{t.telegram}</strong>
-              <a href={https://t.me/PrekorMoyuumKhmer} target="_blank" rel="noreferrer" className="btn" style={{textDecoration:'none'}}>
-                {t.openLink}
-              </a>
-              <a href={TELEGRAM_URL} target="_blank" rel="noreferrer" style={{display:'block'}}>
-                <img
-                 src={TG_BANNER}
-                 alt="Telegram"
-                 style={{maxWidth:240, width:'100%', border:'1px solid #e2e8f0', borderRadius:12, background:'#fff'}}
-                 />
+            <div className="contactCard">
+              <img src={TG_BANNER} alt="Telegram QR / Banner"/>
+              <a className="contactLink" href={TG_LINK} target="_blank" rel="noreferrer">
+                Telegram Group: t.me/PrekorMoyuumKhmer
               </a>
             </div>
-
-            <div className="opt column" style={{alignItems:'center', textAlign:'center'}}>
-              <strong>{t.facebook}</strong>
-              <a href={FACEBOOK_URL} target="_blank" rel="noreferrer" className="btn" style={{textDecoration:'none'}}>
-                {t.openLink}
+            <div className="contactCard">
+              <img src={FB_BANNER} alt="Facebook QR / Banner"/>
+              <a className="contactLink" href={FB_LINK} target="_blank" rel="noreferrer">
+                Facebook Page: facebook.com/MoyuumKhmer.kh
               </a>
-              <img src={qrSrc(FACEBOOK_URL)} alt="Facebook QR" width={220} height={220}
-                   style={{border:'1px solid #e2e8f0', borderRadius:12, background:'#fff'}}/>
             </div>
           </div>
 
-          <div className="row" style={{marginTop:16, justifyContent:'space-between'}}>
-            <button className="btn ghost" onClick={()=> setStep("invoice")}>{t.backToInvoice}</button>
-            <button className="btn" onClick={()=> setStep("q1")}>{t.contactUs}</button>
+          <div className="row" style={{justifyContent:'center', marginTop:16}}>
+            <button className="btn" onClick={()=> setStep("recs")}>{t.back}</button>
           </div>
         </div>
       )}
