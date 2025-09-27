@@ -44,7 +44,37 @@ const GlobalStyles = () => (
     .contactCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fafafa}
     .contactCard img{width:100%;height:auto;border-radius:8px}
     .contactLink{display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline}
-  `}</style>
+    /* --- QR 전용: 높이만 맞추고 비율 유지 --- */
+:root{ --qrH: 180px; } /* 필요시 140~220px 등으로 조정 */
+
+.qrrow{
+  display:flex; gap:16px;
+  justify-content:center; align-items:flex-start;
+  margin-top:12px;
+}
+.qrbox{
+  display:flex; flex-direction:column;
+  align-items:center; gap:8px;
+}
+.qrframe{
+  height:var(--qrH);
+  width:auto;               /* 내용(이미지)에 맞게 */
+  padding:10px;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+.qrframe img{
+  height:100%;              /* 높이 고정 */
+  width:auto;               /* 비율 유지 */
+  object-fit:contain;       /* 잘리지 않게 */
+}
+.qrlabel{
+  font-size:13px; color:#334155;
+}
+`}</style>
 );
 
 /* ===== i18n ===== */
