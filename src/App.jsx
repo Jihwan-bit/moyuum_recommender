@@ -806,7 +806,10 @@ export default function App() {
         </div>
       )}
 
-      {/* CONTACT / THANK-YOU & QR */}
+      // 상단(컴포넌트 바깥이든, 컴포넌트 안 첫 줄이든) 어딘가에 헬퍼:
+const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) ? import.meta.env.BASE_URL : '/';
+
+{/* CONTACT / THANK-YOU & QR */}
 <div className="card" id="contact">
   <h2 style={{ textAlign: "center" }}>
     {lang === "km" ? "សូមអរគុណ!" : "Thank you!"}
@@ -828,7 +831,7 @@ export default function App() {
       >
         <div className="qrframe">
           <img
-            src="/images/moyuum_khmer_telegram.png"
+            src={`${base}images/moyuum_khmer_telegram.png`}
             alt="Telegram QR"
             loading="lazy"
           />
@@ -847,7 +850,7 @@ export default function App() {
       >
         <div className="qrframe">
           <img
-            src="/images/moyuum_khmer_facebook.png"
+            src={`${base}images/moyuum_khmer_facebook.png`}
             alt="Facebook QR"
             loading="lazy"
           />
@@ -857,6 +860,7 @@ export default function App() {
     </div>
   </div>
 </div>
+
 
     </div>
   );
