@@ -17,13 +17,7 @@ const GlobalStyles = () => (
     h2{font-size:18px;margin:0 0 10px}
     .q{margin:24px 0 10px;font-weight:600}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-    .opt{border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#fff;cursor:pointer}
-    .opt.selected{border-color:var(--brand);box-shadow:0 0 0 3px rgba(91,141,239,.2)}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .btn{background:var(--brand);color:#fff;border:none;border-radius:12px;padding:10px 14px;cursor:pointer}
-    .btn.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
-    .btn.mute{background:#e2e8f0;color:#111}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
     .muted{color:var(--muted);font-size:12px}
     .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px}
     .table{width:100%;border-collapse:collapse}
@@ -37,17 +31,61 @@ const GlobalStyles = () => (
     .caption{font-size:12px;color:#64748b}
     .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
     .summaryItem{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:10px}
+    .empty{padding:16px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;text-align:center}
     .imgdebug{font-size:11px;color:#64748b;margin-top:4px}
     .imgdebug a{color:#5b8def;text-decoration:underline}
 
-    /* Contact section */
-    .contactWrap{display:flex;flex-direction:column;align-items:center;gap:12px}
-    .qrRow{display:flex;gap:32px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
-    .qrCard{border:1px solid #e2e8f0;background:#fff;border-radius:14px;padding:12px;width:220px}
-    .qrImgBox{width:100%;height:160px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}
-    .qrImgBox img{height:160px;width:auto;object-fit:contain}
-    .qrTitle{font-weight:600;margin-top:8px}
-    .qrLink{font-size:13px;color:#2563eb;overflow-wrap:anywhere}
+    /* === Cards (options) === */
+    .opt{
+      display:flex; align-items:center; justify-content:center;
+      text-align:center; min-height:72px;
+      background:#fff;
+      border:2px solid #e2e8f0;
+      border-radius:14px;
+      box-shadow:0 1px 0 rgba(0,0,0,.02);
+      padding:14px;
+      cursor:pointer;
+      transition:border-color .15s ease, box-shadow .15s ease, transform .05s ease;
+    }
+    .opt:hover{
+      border-color:var(--brand);
+      box-shadow:0 0 0 3px rgba(91,141,239,.12);
+    }
+    .opt:active{ transform:translateY(1px); }
+    .opt:focus-visible{
+      outline:3px solid #93c5fd;
+      outline-offset:2px;
+    }
+    .opt.selected{
+      border-color:var(--brand);
+      box-shadow:0 0 0 3px rgba(91,141,239,.25);
+    }
+
+    /* === Buttons === */
+    .btn{
+      background:var(--brand);
+      color:#fff;
+      border:2px solid var(--brand);
+      border-radius:12px;
+      padding:10px 14px;
+      cursor:pointer;
+      box-shadow:0 1px 0 rgba(0,0,0,.05);
+      transition:filter .12s ease, box-shadow .12s ease, transform .05s ease;
+    }
+    .btn:hover{ filter:brightness(1.05); box-shadow:0 0 0 3px rgba(91,141,239,.12); }
+    .btn:active{ transform:translateY(1px); }
+    .btn.ghost{
+      background:#fff;
+      color:var(--brand);
+      border:2px solid var(--brand);
+    }
+    .btn:focus-visible{
+      outline:3px solid #93c5fd;
+      outline-offset:2px;
+    }
+    .btn.mute{
+      background:#e2e8f0; color:#111; border:2px solid #e2e8f0;
+    }
   `}</style>
 );
 
@@ -103,9 +141,7 @@ const i18n = {
     selectProducts: "ជ្រើសរើសផលិតផល",
     selectedCount: (n)=>`បានជ្រើស ${n} ធាតុ`,
     invoiceTitle: "វិក័យប័ត្រ",
-    invoiceNote: "តម្លៃគិតជាដុល្លារ សម្រាប់ឧត្តមគតិ (VAT/អត្រាប្តូរ បន្ថែមបានពេលក្រោយ)",
-    thanks: "សូមអរគុណ!",
-    thanksDesc: "បើមានសំណួរ សូមទាក់ទងតាមបណ្តាញខាងក្រោម។"
+    invoiceNote: "តម្លៃគិតជាដុល្លារ សម្រាប់ឧត្តមគតិ (VAT/អត្រាប្តូរ បន្ថែមបានពេលក្រោយ)"
   },
   en: {
     appTitle: "Moyuum Product Recommender (Khmer/English)",
@@ -157,20 +193,16 @@ const i18n = {
     selectProducts: "Select Products",
     selectedCount: (n)=>`${n} selected`,
     invoiceTitle: "Invoice",
-    invoiceNote: "Prices in USD for demo; VAT/exchange can be added later.",
-    thanks: "Thank you!",
-    thanksDesc: "If you have any questions, feel free to reach us below."
+    invoiceNote: "Prices in USD for demo; VAT/exchange can be added later."
   }
 };
 
-/* ========== helpers: normalize & mapping ========== */
+/* ========== helpers ========== */
 const splitBarcodes = (csv) => {
   if (!csv) return [];
   return String(csv).split(/,\s*/).map(s => s.trim()).filter(Boolean);
 };
 const norm = (s) => String(s||"").trim().toLowerCase();
-
-const withBase = (p="") => `${import.meta.env.BASE_URL || "/"}${p}`.replace(/\/+$/,'/');
 
 const normalizeImageUrl = (u) => {
   if (!u) return "";
@@ -223,7 +255,7 @@ const capacityByAge = (ageStage) => {
   switch (ageStage) { case 1: return 170; case 2: return 170; default: return 270; }
 };
 
-/* ===== display helpers ===== */
+/* === value pickers & price parse === */
 const pickFirst = (row, keys) => {
   for (const k of keys) {
     if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== "") {
@@ -232,8 +264,6 @@ const pickFirst = (row, keys) => {
   }
   return "";
 };
-
-// 통화기호·천단위 제거 후 안전 파싱
 const parsePrice = (v) => {
   if (v === null || v === undefined) return 0;
   let t = String(v).trim();
@@ -251,16 +281,12 @@ const parsePrice = (v) => {
   const n = parseFloat(t);
   return isNaN(n) ? 0 : n;
 };
-
-// 이름 선택
 const getDisplayName = (row, lang) => {
   const NameKH = pickFirst(row, ["Name(KH.)","Name (KH.)","NameKH","KH Name","Khmer Name","Name"]);
   const NameEN = pickFirst(row, ["Name(EN.)","Name (EN.)","NameEN","EN Name","English Name"]);
   if (lang === "km") return String(NameKH || NameEN || row.Name || "").trim();
   return String(NameEN || NameKH || row.Name || "").trim();
 };
-
-// 용량·수량 표기
 const fmtSizeQty = (row) => {
   const size = pickFirst(row, ["Size","size","Volume","Capacity"]);
   const qty  = pickFirst(row, ["Quantity","Qty","qty","Pack"]);
@@ -270,7 +296,7 @@ const fmtSizeQty = (row) => {
   return a || b || "";
 };
 
-/* ========== 이미지 폴백 컴포넌트 ========== */
+/* ========== 이미지 폴백 ========== */
 const FallbackImg = ({ sources, alt }) => {
   const [idx, setIdx] = useState(0);
   const src = sources[idx] || "";
@@ -347,7 +373,7 @@ function recommend(ans, products) {
     return (
       /nipple|teat|젖꼭지|노즐/i.test(name) ||
       /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(name)
-    ) && /bottle|nipple|teat/i.test(rawCat);
+    ) && /bottle/i.test(rawCat);
   };
 
   const uniqByBC = (arr) => {
@@ -430,28 +456,20 @@ export default function App() {
   const [lang, setLang] = useState("km");
   const t = i18n[lang];
 
-  // steps: "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
-  const [step, setStep] = useState("q1");
+  const [step, setStep] = useState("q1");        // "q1" | "q11_17" | "review" | "recs" | "invoice"
   const [ans, setAns] = useState({});
   const [db, setDb] = useState(null);
   const [selected, setSelected] = useState([]);
 
-  // QR 이미지 경로 (public/images/ 폴더)
-  const TG_QR = withBase("images/moyuum_khmer_telegram.png");
-  const FB_QR = withBase("images/moyuum_khmer_facebook.png");
-  const TG_LINK = "https://t.me/PrekorMoyuumKhmer";
-  const FB_LINK = "https://www.facebook.com/MoyuumKhmer.kh/";
-
   // DB 로딩 & 정규화
   useEffect(()=>{
-    const base = import.meta.env.BASE_URL || "/";
     const tryLoad = async () => {
       try {
-        const r = await fetch(`${base}data/moyuum_products.json`);
+        const r = await fetch("/data/moyuum_products.json");
         if (!r.ok) throw new Error("fallback");
         return await r.json();
       } catch {
-        const r2 = await fetch(`${base}data/moyuum_products_by_barcode.json`);
+        const r2 = await fetch("/data/moyuum_products_by_barcode.json");
         if (!r2.ok) throw new Error("no db");
         return await r2.json();
       }
@@ -473,17 +491,7 @@ export default function App() {
         Volume: typeof r.Volume === "number" ? r.Volume : Number(r.Volume)||null,
         Size: r.Size ?? r.size ?? r.Volume ?? "",
         Quantity: r.Quantity ?? r.Qty ?? r.qty ?? "",
-        // >>> robust price parsing (JSON의 "Retail Price ($)" 포함)
-        RetailPrice: parsePrice(
-          pickFirst(r, [
-            "Retail Price ($)",   // 핵심 키
-            "RetailPrice",
-            "Retail Price",
-            "Price(USD)",
-            "Price USD",
-            "Price"
-          ])
-        ),
+        RetailPrice: parsePrice(pickFirst(r, ["RetailPrice","Retail Price","Price(USD)","Price USD","Price"])),
         Image1: normalizeImageUrl(r.Image1 ?? ""),
         Image2: normalizeImageUrl(r.Image2 ?? ""),
         PromotionType: r.PromotionType ?? r["Promotion Type"] ?? "",
@@ -511,7 +519,8 @@ export default function App() {
   const invoice = useMemo(()=> computeInvoice(selected), [selected]);
 
   const doExportImage = async () => {
-    const html2canvas = (await import("html2canvas")).default;
+    // html2canvas는 빌드 실패 방지를 위해 동적 import 사용 (런타임에만 필요)
+    const html2canvas = (await import(/* @vite-ignore */ "html2canvas")).default;
     if (!invoiceRef.current) return;
     const canvas = await html2canvas(invoiceRef.current);
     const url = canvas.toDataURL("image/png");
@@ -536,16 +545,28 @@ export default function App() {
 
       <div className="card">
         <h1>{t.appTitle}</h1>
-        <div className="muted">Bilingual survey → <b>review (confirm/edit)</b> → recommendations → cart → invoice → contact.</div>
+        <div className="muted">Bilingual survey → <b>review (confirm/edit)</b> → recommendations → cart → invoice.</div>
       </div>
 
-      {/* Q1 */}
+      {/* Q1 (purpose) */}
       {step === "q1" && (
         <div className="card">
           <h2>{t.q1_title}</h2>
           <div className="grid">
-            <div className={`opt ${ans.purpose===1?'selected':''}`} onClick={()=>setAns({...ans, purpose:1})}>{t.q1_purpose_1}</div>
-            <div className={`opt ${ans.purpose===2?'selected':''}`} onClick={()=>setAns({...ans, purpose:2})}>{t.q1_purpose_2}</div>
+            <div
+              tabIndex={0}
+              className={`opt ${ans.purpose===1?'selected':''}`}
+              onClick={()=>setAns({...ans, purpose:1})}
+            >
+              {t.q1_purpose_1}
+            </div>
+            <div
+              tabIndex={0}
+              className={`opt ${ans.purpose===2?'selected':''}`}
+              onClick={()=>setAns({...ans, purpose:2})}
+            >
+              {t.q1_purpose_2}
+            </div>
           </div>
           <div className="row" style={{marginTop:12}}>
             <button className="btn" onClick={()=> setStep("q11_17")} disabled={!ans.purpose}>{t.next}</button>
@@ -553,17 +574,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Q1 → 1-1 ~ 1-5 */}
+      {/* Q1 → Questions 1~5 (번호 표기: 1, 2, 3, 4, 5) */}
       {step === "q11_17" && (
         <div className="card">
-          <h2>Q1 → 1-1 ~ 1-5</h2>
+          <h2>Q1 → Questions 1–5</h2>
 
-          {/* 1-1 */}
-          <div className="q">1-1) {t.q11_title}</div>
+          {/* 1) Age */}
+          <div className="q">1) {t.q11_title}</div>
           <div className="grid">
             {t.q11_options.map((label, idx) => (
               <div
                 key={idx}
+                tabIndex={0}
                 className={`opt ${ans.ageStage === (idx+1) ? 'selected' : ''}`}
                 onClick={() => setAns({ ...ans, ageStage: (idx + 1) })}
               >
@@ -572,39 +594,61 @@ export default function App() {
             ))}
           </div>
 
-          {/* 1-2 */}
-          <div className="q">1-2) {t.q12_title}</div>
+          {/* 2) Situation/Purpose */}
+          <div className="q">2) {t.q12_title}</div>
           <div className="grid">
             {[1,2,3,4].map(k => (
-              <div key={k} className={`opt ${ans.category===k?'selected':''}`} onClick={()=>setAns({...ans, category:k})}>
+              <div
+                key={k}
+                tabIndex={0}
+                className={`opt ${ans.category===k?'selected':''}`}
+                onClick={()=>setAns({...ans, category:k})}
+              >
                 {t[`q12_${k}`]}
               </div>
             ))}
           </div>
 
-          {/* 1-3 */}
-          <div className="q">1-3) Primary factor</div>
+          {/* 3) Primary factor */}
+          <div className="q">3) {t.q13_title}</div>
           <div className="grid">
             {[1,2,3,4,5].map(k => (
-              <div key={k} className={`opt ${ans.factor===k?'selected':''}`} onClick={()=>setAns({...ans, factor:k})}>
+              <div
+                key={k}
+                tabIndex={0}
+                className={`opt ${ans.factor===k?'selected':''}`}
+                onClick={()=>setAns({...ans, factor:k})}
+              >
                 {t[`q13_${k}`]}
               </div>
             ))}
           </div>
 
-          {/* 1-4 */}
-          <div className="q">1-4) {t.q14_title}</div>
+          {/* 4) Preferred material */}
+          <div className="q">4) {t.q14_title}</div>
           <div className="grid">
             {[{k:"PPSU", label:t.q14_ppsu},{k:"Silicone", label:t.q14_sil},{k:"Glass", label:t.q14_gls}].map(o => (
-              <div key={o.k} className={`opt ${ans.material===o.k?'selected':''}`} onClick={()=>setAns({...ans, material:o.k})}>{o.label}</div>
+              <div
+                key={o.k}
+                tabIndex={0}
+                className={`opt ${ans.material===o.k?'selected':''}`}
+                onClick={()=>setAns({...ans, material:o.k})}
+              >
+                {o.label}
+              </div>
             ))}
           </div>
 
-          {/* 1-5 */}
-          <div className="q">1-5) {t.q15_title}</div>
+          {/* 5) Desired unit price */}
+          <div className="q">5) {t.q15_title}</div>
           <div className="grid">
             {[1,2,3,4,5].map(k => (
-              <div key={k} className={`opt ${ans.priceBand===k?'selected':''}`} onClick={()=>setAns({...ans, priceBand:k})}>
+              <div
+                key={k}
+                tabIndex={0}
+                className={`opt ${ans.priceBand===k?'selected':''}`}
+                onClick={()=>setAns({...ans, priceBand:k})}
+              >
                 {t[`price_${k}`]}
               </div>
             ))}
@@ -628,19 +672,19 @@ export default function App() {
             <div className="summaryItem"><b>Q1</b><br/>{ans.purpose===1? t.q1_purpose_1 : ans.purpose===2? t.q1_purpose_2 : '-' }<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
-            <div className="summaryItem"><b>1-1</b><br/>{ans.ageStage ? i18n[lang].q11_options[ans.ageStage-1] : '-'}<br/>
+            <div className="summaryItem"><b>1</b><br/>{ans.ageStage ? i18n[lang].q11_options[ans.ageStage-1] : '-'}<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
-            <div className="summaryItem"><b>1-2</b><br/>{ans.category ? t[`q12_${ans.category}`] : '-'}<br/>
+            <div className="summaryItem"><b>2</b><br/>{ans.category ? t[`q12_${ans.category}`] : '-'}<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
-            <div className="summaryItem"><b>1-3</b><br/>{ans.factor ? t[`q13_${ans.factor}`] : '-'}<br/>
+            <div className="summaryItem"><b>3</b><br/>{ans.factor ? t[`q13_${ans.factor}`] : '-'}<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
-            <div className="summaryItem"><b>1-4</b><br/>{ans.material ?? '-'}<br/>
+            <div className="summaryItem"><b>4</b><br/>{ans.material ?? '-'}<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
-            <div className="summaryItem"><b>1-5</b><br/>{ans.priceBand ? t[`price_${ans.priceBand}`] : '-'}<br/>
+            <div className="summaryItem"><b>5</b><br/>{ans.priceBand ? t[`price_${ans.priceBand}`] : '-'}<br/>
               <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
             </div>
           </div>
@@ -658,13 +702,13 @@ export default function App() {
           <h2>{t.recsTitle}</h2>
           <div className="muted">{t.selectProducts} · <span className="pill">{i18n[lang].selectedCount(selected.length)}</span></div>
 
-          {/* Answer summary */}
+          {/* Answer summary on top with quick edit */}
           <div className="card" style={{marginTop:12}}>
             <div className="summaryGrid">
-              <div className="summaryItem"><b>1-1</b><br/>{ageText}</div>
-              <div className="summaryItem"><b>1-2</b><br/>{categoryText}</div>
-              <div className="summaryItem"><b>1-4</b><br/>{ans.material ?? '-'}</div>
-              <div className="summaryItem"><b>1-5</b><br/>{priceText}</div>
+              <div className="summaryItem"><b>1</b><br/>{ageText}</div>
+              <div className="summaryItem"><b>2</b><br/>{categoryText}</div>
+              <div className="summaryItem"><b>4</b><br/>{ans.material ?? '-'}</div>
+              <div className="summaryItem"><b>5</b><br/>{priceText}</div>
             </div>
             <div className="row" style={{marginTop:8, justifyContent:'flex-end'}}>
               <button className="btn ghost" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
@@ -675,8 +719,8 @@ export default function App() {
 
           <div className="grid" style={{marginTop:12}}>
             {recs.map(p => {
-              const local1 = p.Barcode ? withBase(`images/${p.Barcode}_1.jpg`) : "";
-              const local2 = p.Barcode ? withBase(`images/${p.Barcode}_2.jpg`) : "";
+              const local1 = p.Barcode ? `/images/${p.Barcode}_1.jpg` : "";
+              const local2 = p.Barcode ? `/images/${p.Barcode}_2.jpg` : "";
               const srcs1 = [p.Image1, local1].filter(Boolean);
               const srcs2 = [p.Image2, local2].filter(Boolean);
 
@@ -685,16 +729,16 @@ export default function App() {
 
               return (
                 <div className="opt" key={p.Barcode}>
-                  <div className="row" style={{justifyContent:'space-between', alignItems:'baseline'}}>
+                  <div className="row" style={{justifyContent:'space-between', alignItems:'baseline', width:'100%'}}>
                     <strong style={{lineHeight:1.2}}>{title || p.Name}</strong>
                     <span className="badge">{p.Type}</span>
                   </div>
-                  <div className="muted">{p.Category} · {p.Material || '—'}{szq ? ` · ${szq}` : ""}</div>
+                  <div className="muted" style={{width:'100%'}}>{p.Category} · {p.Material || '—'}{szq ? ` · ${szq}` : ""}</div>
                   <div className="imgpair" style={{marginTop:8}}>
                     <FallbackImg sources={srcs1} alt="Image1"/>
                     <FallbackImg sources={srcs2} alt="Image2"/>
                   </div>
-                  <div className="row" style={{marginTop:8, justifyContent:'space-between', alignItems:'center'}}>
+                  <div className="row" style={{marginTop:8, justifyContent:'space-between', alignItems:'center', width:'100%'}}>
                     <div><Price v={p.RetailPrice}/></div>
                     <div className="row">
                       <button className="btn" onClick={()=> addSel(p)}>+ Add</button>
@@ -776,48 +820,7 @@ export default function App() {
 
           <div className="row" style={{marginTop:12, justifyContent:'space-between'}}>
             <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
-            <div className="row" style={{gap:8}}>
-              <button className="btn ghost" onClick={doExportImage}>{t.exportInvoice}</button>
-              <button className="btn" onClick={()=> setStep("contact")}>Contact →</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTACT / THANK-YOU & QR */}
-      {step === "contact" && (
-        <div className="card">
-          <div className="contactWrap">
-            <h2>{t.thanks}</h2>
-            <div className="muted" style={{textAlign:'center'}}>{t.thanksDesc}</div>
-
-            <div className="qrRow" style={{marginTop:8}}>
-              {/* Telegram */}
-              <div className="qrCard">
-                <div className="qrImgBox">
-                  <a href={TG_LINK} target="_blank" rel="noreferrer">
-                    <img src={TG_QR} alt="Telegram QR"/>
-                  </a>
-                </div>
-                <div className="qrTitle">Telegram</div>
-                <a className="qrLink" href={TG_LINK} target="_blank" rel="noreferrer">{TG_LINK}</a>
-              </div>
-
-              {/* Facebook */}
-              <div className="qrCard">
-                <div className="qrImgBox">
-                  <a href={FB_LINK} target="_blank" rel="noreferrer">
-                    <img src={FB_QR} alt="Facebook QR"/>
-                  </a>
-                </div>
-                <div className="qrTitle">Facebook</div>
-                <a className="qrLink" href={FB_LINK} target="_blank" rel="noreferrer">{FB_LINK}</a>
-              </div>
-            </div>
-
-            <div className="row" style={{marginTop:12}}>
-              <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
-            </div>
+            <button className="btn" onClick={doExportImage}>{t.exportInvoice}</button>
           </div>
         </div>
       )}
