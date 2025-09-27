@@ -338,4 +338,489 @@ function recommend(ans, products) {
       return row._acc_barcodes_norm.map(normBC).filter(Boolean);
     }
     const raw = row?.["Acc. Barcode"] ?? row?.AccBarcode ?? row?.["Acc Barcode"] ?? "";
-    retur
+    return String(raw).split(/,\s*/).map(normBC).filter(Boolean);
+  };
+
+  const isNipple = (p) => {
+    const name = norm(p?.Name);
+    const rawCat = String(p?.Category || "");
+    return (
+      /nipple|teat|젖꼭지|노즐/i.test(name) ||
+      /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(name)
+    ) && /bottle|nipple|teat/i.test(rawCat);
+  };
+
+  const uniqByBC = (arr) => {
+    const seen = new Set(), out = [];
+    for (const x of arr) {
+      const bc = normBC(x?._barcode_norm || x?.Barcode);
+      if (!bc || seen.has(bc)) continue;
+      seen.add(bc);
+      out.push(x);
+    }
+    return out;
+  };
+
+  const mainsAll = products.filter(p => normalizeType(p.Type || p["Main/Acc. Item"]) === "Main");
+  const accsAll  = products.filter(p => normalizeType(p.Type || p["Main/Acc. Item"]) === "Acc.");
+
+  const surveyCat = categoryFromQ12(ans.category);
+  let mainsPool = [...mainsAll];
+  if (surveyCat) {
+    const within = mainsPool.filter(p => normalizeCategory(p.Category) === surveyCat);
+    if (within.length) mainsPool = within;
+  }
+  const accsPool = [...accsAll];
+
+  const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
+  const sameMatAll  = targetMat ? mainsPool.filter(m => normalizeMaterial(m.Material) === targetMat) : [...mainsPool];
+  const otherMatAll = targetMat ? mainsPool.filter(m => normalizeMaterial(m.Material) !== targetMat) : [];
+
+  const targetVol = capacityByAge(ans.ageStage);
+  const byVol = (a, b) => {
+    if (!targetVol) return 0;
+    const av = typeof a.Volume === "number" ? a.Volume : targetVol;
+    const bv = typeof b.Volume === "number" ? b.Volume : targetVol;
+    return Math.abs(av - targetVol) - Math.abs(bv - targetVol);
+  };
+  sameMatAll.sort(byVol);
+  otherMatAll.sort(byVol);
+
+  const range = priceBandToRange(ans.priceBand);
+  const inBand = range
+    ? (p) => (p.RetailPrice || 0) >= range[0] && (p.RetailPrice || 0) < range[1]
+    : () => true;
+
+  const sameUse  = range ? sameMatAll.filter(inBand)  : sameMatAll;
+  const otherUse = range ? otherMatAll.filter(inBand) : otherMatAll;
+
+  const sameMains  = sameUse.length  ? sameUse  : sameMatAll;
+  const otherMains = otherUse.length ? otherUse : otherMatAll;
+
+  const usedAcc = new Set();
+  const groupOneMain = (m) => {
+    const key = normBC(m._barcode_norm || m.Barcode);
+    const nipples = accsPool.filter(a =>
+      !usedAcc.has(normBC(a._barcode_norm || a.Barcode)) &&
+      isNipple(a) && parseAccList(a).includes(key)
+    );
+    nipples.forEach(n => usedAcc.add(normBC(n._barcode_norm || n.Barcode)));
+
+    const others  = accsPool.filter(a =>
+      !usedAcc.has(normBC(a._barcode_norm || a.Barcode)) &&
+      !isNipple(a) && parseAccList(a).includes(key)
+    );
+    others.forEach(o => usedAcc.add(normBC(o._barcode_norm || o.Barcode)));
+
+    return [m, ...nipples, ...others];
+  };
+
+  let ordered = [];
+  for (const m of sameMains)  ordered.push(...groupOneMain(m));
+  for (const m of otherMains) ordered.push(...groupOneMain(m));
+
+  const remainingAcc = accsPool.filter(a => !usedAcc.has(normBC(a._barcode_norm || a.Barcode)));
+  ordered = uniqByBC([...ordered, ...remainingAcc]);
+
+  return ordered;
+}
+
+/* ========== App ========== */
+export default function App() {
+  const [lang, setLang] = useState("km");
+  const t = i18n[lang];
+
+  // steps: "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
+  const [step, setStep] = useState("q1");
+  const [ans, setAns] = useState({});
+  const [db, setDb] = useState(null);
+  const [selected, setSelected] = useState([]);
+
+  // QR 이미지 경로 (public/images/ 폴더)
+  const TG_QR = withBase("images/moyuum_khmer_telegram.png");
+  const FB_QR = withBase("images/moyuum_khmer_facebook.png");
+  const TG_LINK = "https://t.me/PrekorMoyuumKhmer";
+  const FB_LINK = "https://www.facebook.com/MoyuumKhmer.kh/";
+
+  // DB 로딩 & 정규화
+  useEffect(()=>{
+    const base = import.meta.env.BASE_URL || "/";
+    const tryLoad = async () => {
+      try {
+        const r = await fetch(`${base}data/moyuum_products.json`);
+        if (!r.ok) throw new Error("fallback");
+        return await r.json();
+      } catch {
+        const r2 = await fetch(`${base}data/moyuum_products_by_barcode.json`);
+        if (!r2.ok) throw new Error("no db");
+        return await r2.json();
+      }
+    };
+    tryLoad().then(rows=>{
+      const cleaned = rows.map(r=>({
+        ...r,
+        NameKH: pickFirst(r, ["Name(KH.)","Name (KH.)","NameKH","KH Name","Khmer Name","Name"]),
+        NameEN: pickFirst(r, ["Name(EN.)","Name (EN.)","NameEN","EN Name","English Name"]),
+        Barcode: String(r.Barcode ?? "").trim(),
+        _barcode_norm: r._barcode_norm || String(r.Barcode ?? "").replace(/[^0-9A-Za-z]/g,"").toUpperCase(),
+        CategoryRaw: r.Category ?? "",
+        Category: normalizeCategory(r.Category),
+        Type: normalizeType(r.Type || r["Main/Acc. Item"] || r["Main/Acc.Item"]),
+        AccBarcode: r.AccBarcode ?? r["Acc. Barcode"] ?? r["Acc Barcode"] ?? "",
+        _acc_barcodes_norm: Array.isArray(r._acc_barcodes_norm) ? r._acc_barcodes_norm :
+          splitBarcodes(r["Acc. Barcode"] || r.AccBarcode || r["Acc Barcode"]).map(x=>x.replace(/[^0-9A-Za-z]/g,"").toUpperCase()),
+        Material: normalizeMaterial(r.Material),
+        Volume: typeof r.Volume === "number" ? r.Volume : Number(r.Volume)||null,
+        Size: r.Size ?? r.size ?? r.Volume ?? "",
+        Quantity: r.Quantity ?? r.Qty ?? r.qty ?? "",
+        // >>> robust price parsing (JSON의 "Retail Price ($)" 포함)
+        RetailPrice: parsePrice(
+          pickFirst(r, [
+            "Retail Price ($)",   // 핵심 키
+            "RetailPrice",
+            "Retail Price",
+            "Price(USD)",
+            "Price USD",
+            "Price"
+          ])
+        ),
+        Image1: normalizeImageUrl(r.Image1 ?? ""),
+        Image2: normalizeImageUrl(r.Image2 ?? ""),
+        PromotionType: r.PromotionType ?? r["Promotion Type"] ?? "",
+        PromotionBarcode: r.PromotionBarcode ?? r["Promotion Barcode"] ?? "",
+        PromotionQuantity: r.PromotionQuantity ? Number(r.PromotionQuantity) : (r["Promotion Quantity"] ? Number(r["Promotion Quantity"]) : null),
+        FreeQuantity: r.FreeQuantity ? Number(r.FreeQuantity) : (r["Free Quantity"] ? Number(r["Free Quantity"]) : null),
+        DiscountRate: r.DiscountRate ? Number(r.DiscountRate) : (r["Discount Rate"] ? Number(r["Discount Rate"]) : null),
+      }));
+      setDb(cleaned);
+    }).catch(()=> setDb([]));
+  },[]);
+
+  const recs = useMemo(()=> db ? recommend(ans, db) : [], [ans, db]);
+  const invoiceRef = useRef(null);
+
+  // cart ops
+  const addSel = (p) => setSelected(prev=>{
+    const i = prev.findIndex(s=>s.Barcode===p.Barcode);
+    if (i>=0) { const c=[...prev]; c[i] = {...c[i], qty:c[i].qty+1}; return c; }
+    return [...prev, {...p, qty:1}];
+  });
+  const decSel = (bc) => setSelected(prev=>prev.map(s=>s.Barcode===bc? {...s, qty: Math.max(1, s.qty-1)}: s));
+  const rmSel  = (bc) => setSelected(prev=>prev.filter(s=>s.Barcode!==bc));
+
+  const invoice = useMemo(()=> computeInvoice(selected), [selected]);
+
+  const doExportImage = async () => {
+    const html2canvas = (await import("html2canvas")).default;
+    if (!invoiceRef.current) return;
+    const canvas = await html2canvas(invoiceRef.current);
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url; a.download = "moyuum-invoice.png"; a.click();
+  };
+
+  const Price = ({v}) => <span className="price">${Number(v||0).toFixed(2)}</span>;
+
+  const ageText = (ans.ageStage ? i18n[lang].q11_options[ans.ageStage-1] : "-");
+  const categoryText = (ans.category ? t[`q12_${ans.category}`] : "-");
+  const priceText = (ans.priceBand ? t[`price_${ans.priceBand}`] : "-");
+
+  return (
+    <div className="wrap">
+      <GlobalStyles/>
+      <div className="topbar">
+        <span className="muted">{t.language}:</span>
+        <button className={`langbtn ${lang==='km'?'active':''}`} onClick={()=>setLang('km')}>{t.khmer}</button>
+        <button className={`langbtn ${lang==='en'?'active':''}`} onClick={()=>setLang('en')}>{t.english}</button>
+      </div>
+
+      <div className="card">
+        <h1>{t.appTitle}</h1>
+        <div className="muted">Bilingual survey → <b>review (confirm/edit)</b> → recommendations → cart → invoice → contact.</div>
+      </div>
+
+      {/* Q1 */}
+      {step === "q1" && (
+        <div className="card">
+          <h2>{t.q1_title}</h2>
+          <div className="grid">
+            <div className={`opt ${ans.purpose===1?'selected':''}`} onClick={()=>setAns({...ans, purpose:1})}>{t.q1_purpose_1}</div>
+            <div className={`opt ${ans.purpose===2?'selected':''}`} onClick={()=>setAns({...ans, purpose:2})}>{t.q1_purpose_2}</div>
+          </div>
+          <div className="row" style={{marginTop:12}}>
+            <button className="btn" onClick={()=> setStep("q11_17")} disabled={!ans.purpose}>{t.next}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Q1 → 1-1 ~ 1-5 */}
+      {step === "q11_17" && (
+        <div className="card">
+          <h2>Q1 → 1-1 ~ 1-5</h2>
+
+          {/* 1-1 */}
+          <div className="q">1-1) {t.q11_title}</div>
+          <div className="grid">
+            {t.q11_options.map((label, idx) => (
+              <div
+                key={idx}
+                className={`opt ${ans.ageStage === (idx+1) ? 'selected' : ''}`}
+                onClick={() => setAns({ ...ans, ageStage: (idx + 1) })}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* 1-2 */}
+          <div className="q">1-2) {t.q12_title}</div>
+          <div className="grid">
+            {[1,2,3,4].map(k => (
+              <div key={k} className={`opt ${ans.category===k?'selected':''}`} onClick={()=>setAns({...ans, category:k})}>
+                {t[`q12_${k}`]}
+              </div>
+            ))}
+          </div>
+
+          {/* 1-3 */}
+          <div className="q">1-3) Primary factor</div>
+          <div className="grid">
+            {[1,2,3,4,5].map(k => (
+              <div key={k} className={`opt ${ans.factor===k?'selected':''}`} onClick={()=>setAns({...ans, factor:k})}>
+                {t[`q13_${k}`]}
+              </div>
+            ))}
+          </div>
+
+          {/* 1-4 */}
+          <div className="q">1-4) {t.q14_title}</div>
+          <div className="grid">
+            {[{k:"PPSU", label:t.q14_ppsu},{k:"Silicone", label:t.q14_sil},{k:"Glass", label:t.q14_gls}].map(o => (
+              <div key={o.k} className={`opt ${ans.material===o.k?'selected':''}`} onClick={()=>setAns({...ans, material:o.k})}>{o.label}</div>
+            ))}
+          </div>
+
+          {/* 1-5 */}
+          <div className="q">1-5) {t.q15_title}</div>
+          <div className="grid">
+            {[1,2,3,4,5].map(k => (
+              <div key={k} className={`opt ${ans.priceBand===k?'selected':''}`} onClick={()=>setAns({...ans, priceBand:k})}>
+                {t[`price_${k}`]}
+              </div>
+            ))}
+          </div>
+
+          <div className="row" style={{marginTop:12, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("q1")}>{t.back}</button>
+            <button className="btn" onClick={()=> setStep("review")} disabled={!ans.ageStage||!ans.category||!ans.material||!ans.priceBand}>
+              {t.review}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* REVIEW */}
+      {step === "review" && (
+        <div className="card">
+          <h2>{t.reviewTitle}</h2>
+
+          <div className="summaryGrid">
+            <div className="summaryItem"><b>Q1</b><br/>{ans.purpose===1? t.q1_purpose_1 : ans.purpose===2? t.q1_purpose_2 : '-' }<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+            <div className="summaryItem"><b>1-1</b><br/>{ans.ageStage ? i18n[lang].q11_options[ans.ageStage-1] : '-'}<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+            <div className="summaryItem"><b>1-2</b><br/>{ans.category ? t[`q12_${ans.category}`] : '-'}<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+            <div className="summaryItem"><b>1-3</b><br/>{ans.factor ? t[`q13_${ans.factor}`] : '-'}<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+            <div className="summaryItem"><b>1-4</b><br/>{ans.material ?? '-'}<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+            <div className="summaryItem"><b>1-5</b><br/>{ans.priceBand ? t[`price_${ans.priceBand}`] : '-'}<br/>
+              <button className="btn ghost" onClick={()=>setStep("q11_17")} style={{marginTop:8}}>Edit</button>
+            </div>
+          </div>
+
+          <div className="row" style={{marginTop:16, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("q11_17")}>{t.back}</button>
+            <button className="btn" onClick={()=> setStep("recs")}>{t.proceedToRecs}</button>
+          </div>
+        </div>
+      )}
+
+      {/* RECOMMENDATIONS */}
+      {step === "recs" && (
+        <div className="card">
+          <h2>{t.recsTitle}</h2>
+          <div className="muted">{t.selectProducts} · <span className="pill">{i18n[lang].selectedCount(selected.length)}</span></div>
+
+          {/* Answer summary */}
+          <div className="card" style={{marginTop:12}}>
+            <div className="summaryGrid">
+              <div className="summaryItem"><b>1-1</b><br/>{ageText}</div>
+              <div className="summaryItem"><b>1-2</b><br/>{categoryText}</div>
+              <div className="summaryItem"><b>1-4</b><br/>{ans.material ?? '-'}</div>
+              <div className="summaryItem"><b>1-5</b><br/>{priceText}</div>
+            </div>
+            <div className="row" style={{marginTop:8, justifyContent:'flex-end'}}>
+              <button className="btn ghost" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
+            </div>
+          </div>
+
+          {!db && <div className="muted" style={{marginTop:8}}>Loading product database…</div>}
+
+          <div className="grid" style={{marginTop:12}}>
+            {recs.map(p => {
+              const local1 = p.Barcode ? withBase(`images/${p.Barcode}_1.jpg`) : "";
+              const local2 = p.Barcode ? withBase(`images/${p.Barcode}_2.jpg`) : "";
+              const srcs1 = [p.Image1, local1].filter(Boolean);
+              const srcs2 = [p.Image2, local2].filter(Boolean);
+
+              const title = getDisplayName(p, lang);
+              const szq   = fmtSizeQty(p);
+
+              return (
+                <div className="opt" key={p.Barcode}>
+                  <div className="row" style={{justifyContent:'space-between', alignItems:'baseline'}}>
+                    <strong style={{lineHeight:1.2}}>{title || p.Name}</strong>
+                    <span className="badge">{p.Type}</span>
+                  </div>
+                  <div className="muted">{p.Category} · {p.Material || '—'}{szq ? ` · ${szq}` : ""}</div>
+                  <div className="imgpair" style={{marginTop:8}}>
+                    <FallbackImg sources={srcs1} alt="Image1"/>
+                    <FallbackImg sources={srcs2} alt="Image2"/>
+                  </div>
+                  <div className="row" style={{marginTop:8, justifyContent:'space-between', alignItems:'center'}}>
+                    <div><Price v={p.RetailPrice}/></div>
+                    <div className="row">
+                      <button className="btn" onClick={()=> addSel(p)}>+ Add</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {!!selected.length && (
+            <div className="card" style={{marginTop:12}}>
+              <h2>Cart</h2>
+              <table className="table">
+                <thead>
+                  <tr><th>Product</th><th>Qty</th><th>Unit</th><th>Total</th><th/></tr>
+                </thead>
+                <tbody>
+                  {selected.map(s => (
+                    <tr key={s.Barcode}>
+                      <td>{getDisplayName(s, lang) || s.Name}</td>
+                      <td className="row">
+                        <button className="btn ghost" onClick={()=> decSel(s.Barcode)}>-</button>
+                        <span style={{minWidth:28,textAlign:'center'}}>{s.qty}</span>
+                        <button className="btn ghost" onClick={()=> addSel(s)}>+</button>
+                      </td>
+                      <td><Price v={s.RetailPrice}/></td>
+                      <td><Price v={(s.RetailPrice||0) * s.qty}/></td>
+                      <td><button className="btn mute" onClick={()=> rmSel(s.Barcode)}>Remove</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="row" style={{justifyContent:'space-between', marginTop:12}}>
+                <button className="btn ghost" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
+                <button className="btn" onClick={()=> setStep("invoice")}>{t.toInvoice}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* INVOICE */}
+      {step === "invoice" && (
+        <div className="card">
+          <div ref={invoiceRef} className="invoice">
+            <h2>{t.invoiceTitle}</h2>
+            <table className="table">
+              <thead>
+                <tr><th>Barcode</th><th>Product</th><th>Qty</th><th>Unit</th><th>Line</th></tr>
+              </thead>
+              <tbody>
+                {invoice.lines.map((l, idx) => (
+                  <tr key={idx}>
+                    <td>{l.Barcode}</td>
+                    <td>{getDisplayName(l, lang) || l.Name}</td>
+                    <td>{l.qty}</td>
+                    <td><Price v={l.RetailPrice}/></td>
+                    <td><Price v={(l.RetailPrice||0) * l.qty}/></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="row" style={{justifyContent:'flex-end', gap:24, marginTop:8}}>
+              <div>Subtotal: <strong><Price v={invoice.subtotal}/></strong></div>
+              <div>Total: <strong><Price v={invoice.total}/></strong></div>
+            </div>
+            {invoice.details.length>0 && (
+              <div style={{marginTop:8}}>
+                <div className="caption">Promotion Details</div>
+                <ul>
+                  {invoice.details.map((d,i)=>(<li key={i}>{d.name}: {d.note}</li>))}
+                </ul>
+              </div>
+            )}
+            <div className="muted" style={{marginTop:6}}>{t.invoiceNote}</div>
+          </div>
+
+          <div className="row" style={{marginTop:12, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
+            <div className="row" style={{gap:8}}>
+              <button className="btn ghost" onClick={doExportImage}>{t.exportInvoice}</button>
+              <button className="btn" onClick={()=> setStep("contact")}>Contact →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTACT / THANK-YOU & QR */}
+      {step === "contact" && (
+        <div className="card">
+          <div className="contactWrap">
+            <h2>{t.thanks}</h2>
+            <div className="muted" style={{textAlign:'center'}}>{t.thanksDesc}</div>
+
+            <div className="qrRow" style={{marginTop:8}}>
+              {/* Telegram */}
+              <div className="qrCard">
+                <div className="qrImgBox">
+                  <a href={TG_LINK} target="_blank" rel="noreferrer">
+                    <img src={TG_QR} alt="Telegram QR"/>
+                  </a>
+                </div>
+                <div className="qrTitle">Telegram</div>
+                <a className="qrLink" href={TG_LINK} target="_blank" rel="noreferrer">{TG_LINK}</a>
+              </div>
+
+              {/* Facebook */}
+              <div className="qrCard">
+                <div className="qrImgBox">
+                  <a href={FB_LINK} target="_blank" rel="noreferrer">
+                    <img src={FB_QR} alt="Facebook QR"/>
+                  </a>
+                </div>
+                <div className="qrTitle">Facebook</div>
+                <a className="qrLink" href={FB_LINK} target="_blank" rel="noreferrer">{FB_LINK}</a>
+              </div>
+            </div>
+
+            <div className="row" style={{marginTop:12}}>
+              <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
