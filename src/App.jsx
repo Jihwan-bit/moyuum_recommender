@@ -806,32 +806,58 @@ export default function App() {
         </div>
       )}
 
-      {/* CONTACT */}
-      {step === "contact" && (
-        <div className="card contactBox">
-          <h2>{t.thanks}</h2>
-          <div className="muted" style={{marginTop:4}}>{t.contactLead}</div>
+      {/* CONTACT / THANK-YOU & QR */}
+<div className="card" id="contact">
+  <h2 style={{ textAlign: "center" }}>
+    {lang === "km" ? "សូមអរគុណ!" : "Thank you!"}
+  </h2>
+  <div className="muted" style={{ textAlign: "center" }}>
+    {lang === "km"
+      ? "បើមានសំណួរ សូមទាក់ទងតាមបណ្តាញខាងក្រោម។"
+      : "If you have any questions, please reach us via the channels below."}
+  </div>
 
-          <div className="contactGrid">
-            <div className="contactCard">
-              <img src={TG_BANNER} alt="Telegram QR / Banner"/>
-              <a className="contactLink" href={TG_LINK} target="_blank" rel="noreferrer">
-                Telegram Channel: t.me/PrekorMoyuumKhmer
-              </a>
-            </div>
-            <div className="contactCard">
-              <img src={FB_BANNER} alt="Facebook QR / Banner"/>
-              <a className="contactLink" href={FB_LINK} target="_blank" rel="noreferrer">
-                Facebook Page: facebook.com/MoyuumKhmer.kh
-              </a>
-            </div>
-          </div>
-
-          <div className="row" style={{justifyContent:'center', marginTop:16}}>
-            <button className="btn" onClick={()=> setStep("recs")}>{t.back}</button>
-          </div>
+  <div className="qrrow" style={{ marginTop: 12 }}>
+    {/* Telegram */}
+    <div className="qrbox">
+      <a
+        href="https://t.me/PrekorMoyuumKhmer"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open Telegram group"
+      >
+        <div className="qrframe">
+          <img
+            src="/images/moyuum_khmer_telegram.png"
+            alt="Telegram QR"
+            loading="lazy"
+          />
         </div>
-      )}
+      </a>
+      <div className="qrlabel">Telegram</div>
+    </div>
+
+    {/* Facebook */}
+    <div className="qrbox">
+      <a
+        href="https://www.facebook.com/MoyuumKhmer.kh/"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open Facebook page"
+      >
+        <div className="qrframe">
+          <img
+            src="/images/moyuum_khmer_facebook.png"
+            alt="Facebook QR"
+            loading="lazy"
+          />
+        </div>
+      </a>
+      <div className="qrlabel">Facebook</div>
+    </div>
+  </div>
+</div>
+
     </div>
   );
 }
