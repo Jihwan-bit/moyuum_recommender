@@ -37,44 +37,18 @@ const GlobalStyles = () => (
     .caption{font-size:12px;color:#64748b}
     .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
     .summaryItem{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:10px}
+    .empty{padding:16px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;text-align:center}
     .imgdebug{font-size:11px;color:#64748b;margin-top:4px}
     .imgdebug a{color:#5b8def;text-decoration:underline}
-    .contactBox{text-align:center;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}
-    .contactGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:16px;align-items:start}
-    .contactCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fafafa}
-    .contactCard img{width:100%;height:auto;border-radius:8px}
-    .contactLink{display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline}
-    /* --- QR 전용: 높이만 맞추고 비율 유지 --- */
-:root{ --qrH: 180px; } /* 필요시 140~220px 등으로 조정 */
 
-.qrrow{
-  display:flex; gap:16px;
-  justify-content:center; align-items:flex-start;
-  margin-top:12px;
-}
-.qrbox{
-  display:flex; flex-direction:column;
-  align-items:center; gap:8px;
-}
-.qrframe{
-  height:var(--qrH);
-  width:auto;               /* 내용(이미지)에 맞게 */
-  padding:10px;
-  border:1px solid #e2e8f0;
-  border-radius:12px;
-  background:#fff;
-  display:flex; align-items:center; justify-content:center;
-  overflow:hidden;
-}
-.qrframe img{
-  height:100%;              /* 높이 고정 */
-  width:auto;               /* 비율 유지 */
-  object-fit:contain;       /* 잘리지 않게 */
-}
-.qrlabel{
-  font-size:13px; color:#334155;
-}
-`}</style>
+    /* Contact */
+    .contactWrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;justify-items:center}
+    .qrBox{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;width:260px}
+    .qrImg{display:flex;justify-content:center;align-items:center;height:200px}
+    .qrImg img{max-height:180px; height:180px; width:auto; object-fit:contain;} /* 동일 높이 유지, 비율 보존 */
+    .qrTitle{margin-top:8px;text-align:center;font-weight:600}
+    .qrLink{margin-top:6px;text-align:center;font-size:13px}
+  `}</style>
 );
 
 /* ===== i18n ===== */
@@ -88,6 +62,7 @@ const i18n = {
     proceedToRecs: "បន្តទៅការណែនាំផលិតផល",
     toInvoice: "បន្តទៅវិក័យប័ត្រ",
     exportInvoice: "ទាញយកវិក័យប័ត្រជារូបភាព",
+    toContact: "ទាក់ទង →",
     language: "ភាសា",
     khmer: "ខ្មែរ",
     english: "English",
@@ -132,8 +107,8 @@ const i18n = {
     selectedCount: (n)=>`បានជ្រើស ${n} ធាតុ`,
     invoiceTitle: "វិក័យប័ត្រ",
     invoiceNote: "តម្លៃគិតជាដុល្លារ សម្រាប់ឧត្តមគតិ (VAT/អត្រាប្តូរ បន្ថែមបានពេលក្រោយ)",
-    thanks: "សូមអរគុណសម្រាប់ការប្រើប្រាស់កម្មវិធី!",
-    contactLead: "មានសំណួរទៀតទេ? អាចទាក់ទងអ្នកយើងតាម Telegram ឬ Facebook ខាងក្រោម។"
+    thanksTitle: "សូមអរគុណ!",
+    thanksSub: "បើអ្នកមានសំណួរ សូមទាក់ទងតាមរយៈបណ្តាញខាងក្រោម។"
   },
   en: {
     appTitle: "Moyuum Product Recommender (Khmer/English)",
@@ -144,6 +119,7 @@ const i18n = {
     proceedToRecs: "Proceed to Recommendations",
     toInvoice: "Proceed to Invoice",
     exportInvoice: "Export Invoice as Image",
+    toContact: "Contact →",
     language: "Language",
     khmer: "Khmer",
     english: "English",
@@ -188,8 +164,8 @@ const i18n = {
     selectedCount: (n)=>`${n} selected`,
     invoiceTitle: "Invoice",
     invoiceNote: "Prices in USD for demo; VAT/exchange can be added later.",
-    thanks: "Thanks for using our recommender!",
-    contactLead: "Questions or feedback? Reach us via Telegram or Facebook below."
+    thanksTitle: "Thank you!",
+    thanksSub: "If you have any questions, please contact us below."
   }
 };
 
@@ -261,9 +237,10 @@ const pickFirst = (row, keys) => {
   return "";
 };
 
-// 통화기호·천단위 제거 후 안전 파싱
+// 통화기호·천단위 제거 후 안전 파싱(문자/숫자 모두 대응)
 const parsePrice = (v) => {
   if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
   let t = String(v).trim();
   if (!t) return 0;
   t = t.replace(/[^0-9.,-]/g, "");
@@ -278,6 +255,18 @@ const parsePrice = (v) => {
   }
   const n = parseFloat(t);
   return isNaN(n) ? 0 : n;
+};
+
+// 다양한 가격 컬럼명을 대응
+const getRetailPrice = (row) => {
+  const keys = [
+    "RetailPrice", "Retail Price",
+    "Price(USD)", "Price (USD)", "Price USD", "Price",
+    "Retail Price (USD)", "Retail price (USD)",
+    "Unit Price", "UnitPrice",
+    "SRP", "MSRP"
+  ];
+  return parsePrice(pickFirst(row, keys));
 };
 
 // 이름 선택
@@ -455,26 +444,17 @@ function recommend(ans, products) {
 
 /* ========== App ========== */
 export default function App() {
-  // GitHub Pages base (로컬: '/', 배포: '/<repo>/')
-  const base = import.meta.env.BASE_URL || '/';
-
-  // 외부 링크 & 배너 경로 (public/images/*)
-  const TG_LINK = "https://t.me/PrekorMoyuumKhmer";
-  const FB_LINK = "https://www.facebook.com/MoyuumKhmer.kh/";
-  const TG_BANNER = `${base}images/moyuum_khmer_telegram.png`;
-  const FB_BANNER = `${base}images/moyuum_khmer_facebook.png`;
-
   const [lang, setLang] = useState("km");
   const t = i18n[lang];
 
-  // "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
-  const [step, setStep] = useState("q1");
+  const [step, setStep] = useState("q1"); // "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
   const [ans, setAns] = useState({});
   const [db, setDb] = useState(null);
   const [selected, setSelected] = useState([]);
-  const invoiceRef = useRef(null);
 
-  // DB 로딩 & 정규화 (public/data/*)
+  const base = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.BASE_URL) || "/";
+
+  // DB 로딩 & 정규화
   useEffect(()=>{
     const tryLoad = async () => {
       try {
@@ -504,7 +484,7 @@ export default function App() {
         Volume: typeof r.Volume === "number" ? r.Volume : Number(r.Volume)||null,
         Size: r.Size ?? r.size ?? r.Volume ?? "",
         Quantity: r.Quantity ?? r.Qty ?? r.qty ?? "",
-        RetailPrice: parsePrice(pickFirst(r, ["RetailPrice","Retail Price","Price(USD)","Price USD","Price"])),
+        RetailPrice: getRetailPrice(r), // <<< 가격 컬럼 자동 인식 + 안전 파싱
         Image1: normalizeImageUrl(r.Image1 ?? ""),
         Image2: normalizeImageUrl(r.Image2 ?? ""),
         PromotionType: r.PromotionType ?? r["Promotion Type"] ?? "",
@@ -518,6 +498,7 @@ export default function App() {
   },[base]);
 
   const recs = useMemo(()=> db ? recommend(ans, db) : [], [ans, db]);
+  const invoiceRef = useRef(null);
 
   // cart ops
   const addSel = (p) => setSelected(prev=>{
@@ -531,8 +512,7 @@ export default function App() {
   const invoice = useMemo(()=> computeInvoice(selected), [selected]);
 
   const doExportImage = async () => {
-    // html2canvas는 package.json dependencies에 반드시 포함되어야 합니다.
-    const html2canvas = (await import('html2canvas')).default;
+    const html2canvas = (await import("html2canvas")).default;
     if (!invoiceRef.current) return;
     const canvas = await html2canvas(invoiceRef.current);
     const url = canvas.toDataURL("image/png");
@@ -696,7 +676,6 @@ export default function App() {
 
           <div className="grid" style={{marginTop:12}}>
             {recs.map(p => {
-              // 외부 URL 실패 시 public/images/<Barcode>_1.jpg/_2.jpg 로 폴백
               const local1 = p.Barcode ? `${base}images/${p.Barcode}_1.jpg` : "";
               const local2 = p.Barcode ? `${base}images/${p.Barcode}_2.jpg` : "";
               const srcs1 = [p.Image1, local1].filter(Boolean);
@@ -800,68 +779,43 @@ export default function App() {
             <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
             <div className="row" style={{gap:8}}>
               <button className="btn ghost" onClick={doExportImage}>{t.exportInvoice}</button>
-              <button className="btn" onClick={()=> setStep("contact")}>Contact →</button>
+              <button className="btn" onClick={()=> setStep("contact")}>{t.toContact}</button>
             </div>
           </div>
         </div>
       )}
 
-      // 상단(컴포넌트 바깥이든, 컴포넌트 안 첫 줄이든) 어딘가에 헬퍼:
-const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) ? import.meta.env.BASE_URL : '/';
+      {/* CONTACT / THANK-YOU & QR */}
+      {step === "contact" && (
+        <div className="card">
+          <h2 style={{textAlign:'center'}}>{t.thanksTitle}</h2>
+          <div className="muted" style={{textAlign:'center', marginBottom:16}}>{t.thanksSub}</div>
 
-{/* CONTACT / THANK-YOU & QR */}
-<div className="card" id="contact">
-  <h2 style={{ textAlign: "center" }}>
-    {lang === "km" ? "សូមអរគុណ!" : "Thank you!"}
-  </h2>
-  <div className="muted" style={{ textAlign: "center" }}>
-    {lang === "km"
-      ? "បើមានសំណួរ សូមទាក់ទងតាមបណ្តាញខាងក្រោម។"
-      : "If you have any questions, please reach us via the channels below."}
-  </div>
+          <div className="contactWrap">
+            {/* Telegram */}
+            <a className="qrBox" href="https://t.me/PrekorMoyuumKhmer" target="_blank" rel="noreferrer">
+              <div className="qrImg">
+                <img src={`${base}images/moyuum_khmer_telegram.png`} alt="Telegram QR"/>
+              </div>
+              <div className="qrTitle">Telegram</div>
+              <div className="qrLink">t.me/PrekorMoyuumKhmer</div>
+            </a>
 
-  <div className="qrrow" style={{ marginTop: 12 }}>
-    {/* Telegram */}
-    <div className="qrbox">
-      <a
-        href="https://t.me/PrekorMoyuumKhmer"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Open Telegram group"
-      >
-        <div className="qrframe">
-          <img
-            src={`${base}images/moyuum_khmer_telegram.png`}
-            alt="Telegram QR"
-            loading="lazy"
-          />
+            {/* Facebook */}
+            <a className="qrBox" href="https://www.facebook.com/MoyuumKhmer.kh/" target="_blank" rel="noreferrer">
+              <div className="qrImg">
+                <img src={`${base}images/moyuum_khmer_facebook.png`} alt="Facebook QR"/>
+              </div>
+              <div className="qrTitle">Facebook</div>
+              <div className="qrLink">facebook.com/MoyuumKhmer.kh</div>
+            </a>
+          </div>
+
+          <div className="row" style={{marginTop:16, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("invoice")}>{t.back}</button>
+          </div>
         </div>
-      </a>
-      <div className="qrlabel">Telegram</div>
-    </div>
-
-    {/* Facebook */}
-    <div className="qrbox">
-      <a
-        href="https://www.facebook.com/MoyuumKhmer.kh/"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Open Facebook page"
-      >
-        <div className="qrframe">
-          <img
-            src={`${base}images/moyuum_khmer_facebook.png`}
-            alt="Facebook QR"
-            loading="lazy"
-          />
-        </div>
-      </a>
-      <div className="qrlabel">Facebook</div>
-    </div>
-  </div>
-</div>
-
-
+      )}
     </div>
   );
 }
