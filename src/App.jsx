@@ -1,70 +1,36 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /* =========================
-   Pastel UI (no Tailwind)
+   Minimal CSS (no Tailwind)
    ========================= */
 const GlobalStyles = () => (
   <style>{`
-    /* ----- Pastel theme palette ----- */
-    :root{
-      --bg:        #f7f9ff;   /* very soft blue background */
-      --card:      #ffffff;
-      --text:      #0f172a;
-      --muted:     #64748b;
-      --brand:     #7aa7ff;   /* pastel blue (primary) */
-      --ring-clr:  rgba(122,167,255,.25);
-      --ring-sub:  rgba(122,167,255,.15);
-      --ok:        #22c55e;
-      --warn:      #fbbf24;
-      --danger:    #ef4444;
-      --shadow:    0 6px 24px rgba(15,23,42,.06);
-      --shadow-sm: 0 2px 10px rgba(15,23,42,.05);
-    }
-
+    :root{--bg:#f8fafc;--card:#ffffff;--text:#0f172a;--muted:#475569;--brand:#5b8def;--ok:#16a34a;--warn:#f59e0b;--danger:#ef4444;}
     *{box-sizing:border-box;font-family:Inter, "Noto Sans Khmer", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial}
-    body{
-      margin:0;color:var(--text);
-      background:
-        radial-gradient(1200px 600px at -10% -10%, #e9f3ff 0%, transparent 60%),
-        radial-gradient(900px 500px at 110% 0%, #f7fff9 0%, transparent 55%),
-        var(--bg);
-    }
-    .wrap{max-width:1120px;margin:28px auto;padding:16px}
-
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1040px;margin:24px auto;padding:16px}
     .topbar{display:flex;gap:12px;justify-content:flex-end;align-items:center;margin-bottom:12px}
-    .langbtn{
-      border:2px solid #dbe4ff;background:#fff;padding:7px 12px;border-radius:999px;cursor:pointer;
-      transition:.15s border-color ease, .15s box-shadow ease;
-    }
-    .langbtn:hover{ box-shadow: 0 0 0 3px var(--ring-sub); border-color: var(--brand); }
-    .langbtn.active{border-color:var(--brand);color:#2a5fd6;font-weight:700;box-shadow:0 0 0 3px var(--ring-sub)}
-
-    .card{
-      background:var(--card);
-      border:1px solid #e6ecff;
-      border-radius:16px;
-      padding:20px;
-      box-shadow:var(--shadow);
-      margin-bottom:18px
-    }
-    h1{font-size:24px;margin:4px 0 12px}
-    h2{font-size:19px;margin:0 0 10px}
-    .q{margin:24px 0 10px;font-weight:700}
+    .langbtn{border:1px solid #cbd5e1;background:#fff;padding:6px 10px;border-radius:10px;cursor:pointer}
+    .langbtn.active{border-color:var(--brand);color:var(--brand);font-weight:600}
+    .card{background:var(--card);border:1px solid #e2e8f0;border-radius:16px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.04);margin-bottom:16px}
+    h1{font-size:22px;margin:4px 0 12px}
+    h2{font-size:18px;margin:0 0 10px}
+    .q{margin:24px 0 10px;font-weight:600}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .muted{color:var(--muted);font-size:12px}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px}
     .table{width:100%;border-collapse:collapse}
-    .table th,.table td{border-bottom:1px solid #edf2ff;padding:10px;text-align:left}
+    .table th,.table td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}
     .price{font-variant-numeric:tabular-nums}
-    .imgpair{display:flex;gap:10px}
-    .imgframe{width:92px;height:92px;border:1px solid #edf2ff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
+    .imgpair{display:flex;gap:8px}
+    .imgframe{width:88px;height:88px;border:1px solid #e2e8f0;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
     .imgframe img{width:100%;height:100%;object-fit:cover}
-    .badge{font-size:12px;background:#ecfeff;border:1px solid #a5f3fc;color:#065f46;padding:3px 8px;border-radius:999px}
-    .invoice{background:#f8fbff;border:1px dashed #cbd5e1;border-radius:16px;padding:16px}
+    .badge{font-size:12px;background:#ecfeff;border:1px solid #a5f3fc;color:#155e75;padding:3px 6px;border-radius:999px}
+    .invoice{background:#fff;border:1px dashed #94a3b8;border-radius:16px;padding:16px}
     .caption{font-size:12px;color:#64748b}
     .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
-    .summaryItem{background:#f4f7ff;border:1px solid #e6ecff;border-radius:12px;padding:12px}
+    .summaryItem{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:10px}
     .empty{padding:16px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;text-align:center}
     .imgdebug{font-size:11px;color:#64748b;margin-top:4px}
     .imgdebug a{color:#5b8def;text-decoration:underline}
@@ -72,60 +38,54 @@ const GlobalStyles = () => (
     /* === Cards (options) === */
     .opt{
       display:flex; align-items:center; justify-content:center;
-      text-align:center; min-height:78px;
+      text-align:center; min-height:72px;
       background:#fff;
-      border:2px solid #e7ecff;
+      border:2px solid #e2e8f0;
       border-radius:14px;
-      box-shadow:var(--shadow-sm);
-      padding:16px;
+      box-shadow:0 1px 0 rgba(0,0,0,.02);
+      padding:14px;
       cursor:pointer;
-      transition:border-color .15s ease, box-shadow .15s ease, transform .05s ease, background-color .15s ease;
+      transition:border-color .15s ease, box-shadow .15s ease, transform .05s ease;
     }
     .opt:hover{
       border-color:var(--brand);
-      box-shadow:0 0 0 4px var(--ring-sub);
-      background:linear-gradient(0deg, #f5f9ff, #fff);
+      box-shadow:0 0 0 3px rgba(91,141,239,.12);
     }
     .opt:active{ transform:translateY(1px); }
     .opt:focus-visible{
-      outline:3px solid #cfe1ff;
+      outline:3px solid #93c5fd;
       outline-offset:2px;
     }
     .opt.selected{
       border-color:var(--brand);
-      box-shadow:0 0 0 6px var(--ring-clr);
-      background:linear-gradient(0deg, #f2f7ff, #fff);
+      box-shadow:0 0 0 3px rgba(91,141,239,.25);
     }
 
-    /* === Buttons (centered & wider CTAs) === */
+    /* === Buttons === */
     .btn{
       background:var(--brand);
       color:#fff;
       border:2px solid var(--brand);
-      border-radius:14px;
-      padding:12px 18px;
+      border-radius:12px;
+      padding:10px 14px;
       cursor:pointer;
-      box-shadow:var(--shadow-sm);
-      transition:filter .12s ease, box-shadow .12s ease, transform .05s ease, background-color .12s ease;
+      box-shadow:0 1px 0 rgba(0,0,0,.05);
+      transition:filter .12s ease, box-shadow .12s ease, transform .05s ease;
     }
-    .btn:hover{ filter:brightness(1.05); box-shadow:0 0 0 4px var(--ring-sub); }
+    .btn:hover{ filter:brightness(1.05); box-shadow:0 0 0 3px rgba(91,141,239,.12); }
     .btn:active{ transform:translateY(1px); }
     .btn.ghost{
       background:#fff;
-      color:#2a5fd6;
+      color:var(--brand);
       border:2px solid var(--brand);
     }
     .btn:focus-visible{
-      outline:3px solid #cfe1ff;
+      outline:3px solid #93c5fd;
       outline-offset:2px;
     }
     .btn.mute{
-      background:#eef2ff; color:#111; border:2px solid #eef2ff;
+      background:#e2e8f0; color:#111; border:2px solid #e2e8f0;
     }
-    /* 공통 액션 영역: 항상 중앙정렬 */
-    .actions{ display:flex; gap:12px; align-items:center; justify-content:center; margin-top:14px; }
-    /* 버튼을 더 넓게 */
-    .wide{ min-width:220px; font-weight:700; }
   `}</style>
 );
 
@@ -238,7 +198,10 @@ const i18n = {
 };
 
 /* ========== helpers ========== */
-const splitBarcodes = (csv) => (csv ? String(csv).split(/,\s*/).map(s => s.trim()).filter(Boolean) : []);
+const splitBarcodes = (csv) => {
+  if (!csv) return [];
+  return String(csv).split(/,\s*/).map(s => s.trim()).filter(Boolean);
+};
 const norm = (s) => String(s||"").trim().toLowerCase();
 
 const normalizeImageUrl = (u) => {
@@ -264,11 +227,33 @@ const normalizeCategory = (c) => {
   if (/hyg|clean|wipe/.test(n)) return "Hygiene";
   return c || "";
 };
-const normalizeType = (t) => { const n = norm(t); if (n.startsWith("main")) return "Main"; if (n.startsWith("acc")) return "Acc."; return t || ""; };
-const normalizeMaterial = (m) => { const n = norm(m); if (/ppsu|plastic/.test(n)) return "PPSU"; if (/sil/.test(n)) return "Silicone"; if (/glass|gls/.test(n)) return "Glass"; return m || ""; };
-const priceBandToRange = (band) => ({1:[0,5],2:[5,10],3:[10,15],4:[15,20],5:[20,Infinity]}[band]);
+const normalizeType = (t) => {
+  const n = norm(t);
+  if (n.startsWith("main")) return "Main";
+  if (n.startsWith("acc")) return "Acc.";
+  return t || "";
+};
+const normalizeMaterial = (m) => {
+  const n = norm(m);
+  if (/ppsu|plastic/.test(n)) return "PPSU";
+  if (/sil/.test(n)) return "Silicone";
+  if (/glass|gls/.test(n)) return "Glass";
+  return m || "";
+};
+const priceBandToRange = (band) => {
+  switch (band) {
+    case 1: return [0, 5];
+    case 2: return [5, 10];
+    case 3: return [10, 15];
+    case 4: return [15, 20];
+    case 5: return [20, Infinity];
+    default: return undefined;
+  }
+};
 const categoryFromQ12 = (c) => ({1:"Feeding",2:"Outing",3:"Oral",4:"Hygiene"}[c]);
-const capacityByAge = (ageStage) => (ageStage===1 || ageStage===2 ? 170 : 270);
+const capacityByAge = (ageStage) => {
+  switch (ageStage) { case 1: return 170; case 2: return 170; default: return 270; }
+};
 
 /* === value pickers & price parse === */
 const pickFirst = (row, keys) => {
@@ -583,14 +568,13 @@ export default function App() {
               {t.q1_purpose_2}
             </div>
           </div>
-          {/* ▶ 버튼 중앙정렬 + 넓은폭 */}
-          <div className="actions">
-            <button className="btn wide" onClick={()=> setStep("q11_17")} disabled={!ans.purpose}>{t.next}</button>
+          <div className="row" style={{marginTop:12}}>
+            <button className="btn" onClick={()=> setStep("q11_17")} disabled={!ans.purpose}>{t.next}</button>
           </div>
         </div>
       )}
 
-      {/* Q1 → Questions 1~5 */}
+      {/* Q1 → Questions 1~5 (번호 표기: 1, 2, 3, 4, 5) */}
       {step === "q11_17" && (
         <div className="card">
           <h2>Q1 → Questions 1–5</h2>
@@ -670,10 +654,9 @@ export default function App() {
             ))}
           </div>
 
-          {/* ▶ Back / Review: 중앙정렬 + wide */}
-          <div className="actions">
-            <button className="btn ghost wide" onClick={()=> setStep("q1")}>{t.back}</button>
-            <button className="btn wide" onClick={()=> setStep("review")} disabled={!ans.ageStage||!ans.category||!ans.material||!ans.priceBand}>
+          <div className="row" style={{marginTop:12, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("q1")}>{t.back}</button>
+            <button className="btn" onClick={()=> setStep("review")} disabled={!ans.ageStage||!ans.category||!ans.material||!ans.priceBand}>
               {t.review}
             </button>
           </div>
@@ -706,10 +689,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* ▶ Back / Proceed: 중앙정렬 + wide */}
-          <div className="actions">
-            <button className="btn ghost wide" onClick={()=> setStep("q11_17")}>{t.back}</button>
-            <button className="btn wide" onClick={()=> setStep("recs")}>{t.proceedToRecs}</button>
+          <div className="row" style={{marginTop:16, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("q11_17")}>{t.back}</button>
+            <button className="btn" onClick={()=> setStep("recs")}>{t.proceedToRecs}</button>
           </div>
         </div>
       )}
@@ -746,7 +728,7 @@ export default function App() {
               const szq   = fmtSizeQty(p);
 
               return (
-                <div className="opt" key={p.Barcode} style={{alignItems:'stretch', flexDirection:'column'}}>
+                <div className="opt" key={p.Barcode}>
                   <div className="row" style={{justifyContent:'space-between', alignItems:'baseline', width:'100%'}}>
                     <strong style={{lineHeight:1.2}}>{title || p.Name}</strong>
                     <span className="badge">{p.Type}</span>
@@ -791,10 +773,9 @@ export default function App() {
                 </tbody>
               </table>
 
-              {/* ▶ Back / Invoice: 중앙정렬 + wide */}
-              <div className="actions">
-                <button className="btn ghost wide" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
-                <button className="btn wide" onClick={()=> setStep("invoice")}>{t.toInvoice}</button>
+              <div className="row" style={{justifyContent:'space-between', marginTop:12}}>
+                <button className="btn ghost" onClick={()=> setStep("review")}>{t.reviseAnswers}</button>
+                <button className="btn" onClick={()=> setStep("invoice")}>{t.toInvoice}</button>
               </div>
             </div>
           )}
@@ -837,10 +818,9 @@ export default function App() {
             <div className="muted" style={{marginTop:6}}>{t.invoiceNote}</div>
           </div>
 
-          {/* ▶ Back / Export: 중앙정렬 + wide */}
-          <div className="actions">
-            <button className="btn ghost wide" onClick={()=> setStep("recs")}>{t.back}</button>
-            <button className="btn wide" onClick={doExportImage}>{t.exportInvoice}</button>
+          <div className="row" style={{marginTop:12, justifyContent:'space-between'}}>
+            <button className="btn ghost" onClick={()=> setStep("recs")}>{t.back}</button>
+            <button className="btn" onClick={doExportImage}>{t.exportInvoice}</button>
           </div>
         </div>
       )}
