@@ -255,7 +255,7 @@ export default function App(){
         Material: normalizeMaterial(r.Material),
         Volume: typeof r.Volume==="number"? r.Volume : Number(r.Volume)||null,
         Size: r.Size??r.size??r.Volume??"", Quantity: r.Quantity??r.Qty??r.qty??"",
-        RetailPrice: parsePrice(pickFirst(r,["RetailPrice","Retail Price","Price(USD)","Price USD","Price"])),
+        RetailPrice: parsePrice(pickFirst(r, ["RetailPrice", "Retail Price", "Retail Price ($)", "RetailPrice($)", "Price(USD)", "Price USD", "Price"])),
         Image1: normalizeImageUrl(r.Image1??""), Image2: normalizeImageUrl(r.Image2??""),
         PromotionType: r.PromotionType??r["Promotion Type"]??"",
         PromotionBarcode: r.PromotionBarcode??r["Promotion Barcode"]??"",
