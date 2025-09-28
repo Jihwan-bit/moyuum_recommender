@@ -688,9 +688,10 @@ export default function App(){
           </div>
 
           <div className="actions">
-            <button className="btn ghost wide" onClick={()=>setStep("recs")}>{t.back}</button>
-            <button className="btn wide" onClick={doExportImage}>{t.exportInvoice}</button>
-            <button className="btn wide" onClick={()=>setStep("contact")}>{t.toContact}</button>
+            {/* 여기만 wide → fit 으로 교체 */}
+             <button className="btn ghost fit" onClick={()=>setStep("recs")}>{t.back}</button>
+             <button className="btn wide" onClick={doExportImage}>{t.exportInvoice}</button>
+             <button className="btn wide" onClick={()=>setStep("contact")}>{t.toContact}</button>
           </div>
         </div>
       )}
