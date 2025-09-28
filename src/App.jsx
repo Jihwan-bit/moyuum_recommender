@@ -183,7 +183,15 @@ function recommend(ans, products) {
       /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
     /bottle|feeding/i.test(String(p?.Category || ""));
 
-  // 바코드 기준 안정적 중복 제거(등장 순서 보존)
+  // 메인 제품의 유형 판별(정렬 우선순위에 사용)
+  const isBottleMain = (p) =>
+    /bottle/i.test(String(p?.Category || "")) ||
+    /bottle/i.test(String(p?.Name || ""));
+  const isStrawMain = (p) =>
+    /(straw|one[\s-]?touch)/i.test(String(p?.Name || "")) ||
+    /(straw|cup)/i.test(String(p?.Category || ""));
+
+  // 바코드 기준 중복 제거(순서 보존)
   const dedupByBC = (arr) => {
     const seen = new Set();
     const out = [];
@@ -196,18 +204,17 @@ function recommend(ans, products) {
     return out;
   };
 
-  // 동일 라인(제품군) 키 만들기: 이름에서 용량/사이즈 토큰을 제거해 라인명을 추출
+  // 제품 라인(군) 키: 이름에서 용량/사이즈 토큰 제거
   const baseKeyFromName = (p) => {
     const raw = String(p?.NameEN || p?.Name || "").toLowerCase();
     return raw
-      .replace(/\b\d{2,4}\s*(ml|oz)\b/g, "") // 150ml, 8oz 등
-      .replace(/\b(xl|l|m|s)\b/g, "")        // 단독 사이즈 토큰
-      .replace(/\([\s\S]*?\)/g, "")          // 괄호 설명(종종 용량/에디션)
+      .replace(/\b\d{2,4}\s*(ml|oz)\b/g, "")
+      .replace(/\b(xl|l|m|s)\b/g, "")
+      .replace(/\([\s\S]*?\)/g, "")
       .replace(/\s+/g, " ")
       .trim();
   };
 
-  // 볼륨 비교용 숫자 추출(없으면 NaN)
   const volNum = (p) => {
     if (typeof p?.Volume === "number") return p.Volume;
     const m = String(p?.Name || "").match(/(\d{2,4})\s*ml/i);
@@ -229,7 +236,7 @@ function recommend(ans, products) {
     );
     if (within.length) mainsPool = within;
   }
-  const accsPool = dedupByBC(accsAll); // 데이터 중복행 보호
+  const accsPool = dedupByBC(accsAll);
 
   const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
   const sameMatAll = targetMat
@@ -247,7 +254,7 @@ function recommend(ans, products) {
   const sameUse = sameMatAll.filter(inBand);
   const otherUse = otherMatAll.filter(inBand);
 
-  // 메인을 라인(baseKey)으로 묶고, 라인 내에서는 볼륨 오름차순
+  // 메인을 라인(baseKey)으로 묶고, 라인 내 볼륨 오름차순
   const groupMains = (arr) => {
     const map = new Map();
     for (const m of arr) {
@@ -255,45 +262,78 @@ function recommend(ans, products) {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(m);
     }
-    // 정렬: 라인 키 알파벳 → 그룹 내 볼륨 asc
-    const keys = [...map.keys()].sort();
+    const keys = [...map.keys()];
     return keys.map((k) => {
       const list = map.get(k).slice().sort((a, b) => (volNum(a) || 9999) - (volNum(b) || 9999));
-      return { key: k, mains: list };
+      // 그룹의 대표 타입(병/빨대/기타) 태깅
+      const hasBottle = list.some(isBottleMain);
+      const hasStraw  = list.some(isStrawMain);
+      let gtype = "other";
+      if (hasBottle && !hasStraw) gtype = "bottle";
+      else if (hasStraw && !hasBottle) gtype = "straw";
+      else if (hasBottle && hasStraw) gtype = "mixed";
+      return { key: k, mains: list, gtype };
     });
   };
 
   const sameGroups = groupMains(sameUse.length ? sameUse : sameMatAll);
   const otherGroups = groupMains(otherUse.length ? otherUse : otherMatAll);
 
-  // 악세서리 재사용/중복 방지
+  // === 연령대/피딩일 때의 그룹 우선순위 ===
+  const feedingSelected = categoryFromQ12(ans.category) === "Feeding";
+  const early = [1, 2, 3].includes(ans.ageStage);
+  const late  = [4, 5, 6].includes(ans.ageStage);
+
+  const groupWeight = (g) => {
+    if (!feedingSelected) return 1; // 기존 순서 유지
+    if (early) {
+      if (g.gtype === "bottle") return 0;
+      if (g.gtype === "straw")  return 1;
+      return 2;
+    }
+    if (late) {
+      if (g.gtype === "straw")  return 0;
+      if (g.gtype === "bottle") return 1;
+      return 2;
+    }
+    return 1;
+  };
+
+  // 선호소재 그룹·기타소재 그룹 각각 우선순위로 정렬
+  const sortGroups = (groups) =>
+    groups
+      .slice()
+      .sort((a, b) => {
+        const wa = groupWeight(a);
+        const wb = groupWeight(b);
+        if (wa !== wb) return wa - wb;
+        return a.key.localeCompare(b.key); // 동일 우선순위면 알파벳
+      });
+
+  const sameSorted = sortGroups(sameGroups);
+  const otherSorted = sortGroups(otherGroups);
+
+  // 악세서리 중복/재사용 방지
   const usedAcc = new Set();
 
-  // 특정 메인에 연결된 악세서리 수집(그룹 뒤에 한꺼번에 붙일 용도)
   const accessoriesForMain = (m) => {
     const keyBC = normBC(m._barcode_norm || m.Barcode);
     const linked = accsPool.filter((a) => parseAcc(a).includes(keyBC));
-    // 데이터 중복행 제거
     const uniq = dedupByBC(linked);
-    // 아직 사용되지 않은 것만
     return uniq.filter((a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode)));
   };
 
-  // 그룹을 처리: 메인들을 먼저 → 이어서 그룹 악세(니플→기타)
   const pushGroup = (group, out) => {
-    // 1) 메인 먼저 모두
+    // 1) 메인들 먼저
     for (const m of group.mains) out.push(m);
 
-    // 2) 그룹 악세서리 모으기(중복 제거)
+    // 2) 그룹 악세서리(니플 → 기타)
     const accs = [];
     for (const m of group.mains) accs.push(...accessoriesForMain(m));
     const uniqAccs = dedupByBC(accs);
-
-    // 3) 니플 먼저, 그 다음 기타
     const nipples = uniqAccs.filter(isNipple);
-    const others = uniqAccs.filter((a) => !isNipple(a));
+    const others  = uniqAccs.filter((a) => !isNipple(a));
 
-    // 4) 붙이면서 사용 처리
     for (const a of [...nipples, ...others]) {
       out.push(a);
       usedAcc.add(normBC(a._barcode_norm || a.Barcode));
@@ -301,17 +341,14 @@ function recommend(ans, products) {
   };
 
   const ordered = [];
-  // 선호 소재 그룹들 우선
-  for (const g of sameGroups) pushGroup(g, ordered);
-  // 그 다음 다른 소재 그룹들
-  for (const g of otherGroups) pushGroup(g, ordered);
+  for (const g of sameSorted) pushGroup(g, ordered); // 선호 소재 먼저
+  for (const g of otherSorted) pushGroup(g, ordered); // 그 외 소재
 
-  // 남은 악세서리(어느 메인에도 연결 안 되었거나 이미 사용 영역 밖) 정리해서 뒤에
+  // 남은 악세서리 뒤에(중복 방지)
   const remainingAccs = accsPool.filter(
     (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
   );
 
-  // 최종: 바코드 기준 한 번 더 dedup
   return dedupByBC([...ordered, ...remainingAccs]);
 }
 
