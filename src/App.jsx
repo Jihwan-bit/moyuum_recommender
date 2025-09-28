@@ -166,56 +166,123 @@ function computeInvoice(lines){
 }
 
 /* Recommendation */
-function recommend(ans,products){
-  const normBC=(s)=>String(s||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();
-  const parseAcc=(row)=> Array.isArray(row?._acc_barcodes_norm)&&row._acc_barcodes_norm.length
-    ? row._acc_barcodes_norm.map(normBC).filter(Boolean)
-    : String(row?.["Acc. Barcode"] ?? row?.AccBarcode ?? row?.["Acc Barcode"] ?? "")
-        .split(/,\s*/).map(normBC).filter(Boolean);
+function recommend(ans, products) {
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const normBC = (s) => String(s || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 
-  const isNipple=(p)=> (/nipple|teat|젖꼭지|노즐/i.test(String(p?.Name||"")) || /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name||""))) && /bottle/i.test(String(p?.Category||""));
+  const parseAcc = (row) =>
+    Array.isArray(row?._acc_barcodes_norm) && row._acc_barcodes_norm.length
+      ? row._acc_barcodes_norm.map(normBC).filter(Boolean)
+      : String(row?.["Acc. Barcode"] ?? row?.AccBarcode ?? row?.["Acc Barcode"] ?? "")
+          .split(/,\s*/)
+          .map(normBC)
+          .filter(Boolean);
 
-  const mainsAll=products.filter(p=>normalizeType(p.Type||p["Main/Acc. Item"])==="Main");
-  const accsAll =products.filter(p=>normalizeType(p.Type||p["Main/Acc. Item"])==="Acc.");
+  const isNipple = (p) =>
+    (/nipple|teat|젖꼭지|노즐/i.test(String(p?.Name || "")) ||
+      /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
+    /bottle/i.test(String(p?.Category || ""));
 
-  const surveyCat=categoryFromQ12(ans.category);
-  let mainsPool=[...mainsAll];
-  if(surveyCat){const within=mainsPool.filter(p=>normalizeCategory(p.Category)===surveyCat); if(within.length) mainsPool=within;}
-  const accsPool=[...accsAll];
-
-  const targetMat=ans.material?normalizeMaterial(ans.material):null;
-  const sameMatAll =targetMat?mainsPool.filter(m=>normalizeMaterial(m.Material)===targetMat):[...mainsPool];
-  const otherMatAll=targetMat?mainsPool.filter(m=>normalizeMaterial(m.Material)!==targetMat):[];
-
-  const targetVol=capacityByAge(ans.ageStage);
-  const byVol=(a,b)=>{const av=typeof a.Volume==="number"?a.Volume:targetVol; const bv=typeof b.Volume==="number"?b.Volume:targetVol; return Math.abs(av-targetVol)-Math.abs(bv-targetVol);};
-  sameMatAll.sort(byVol); otherMatAll.sort(byVol);
-
-  const range=priceBandToRange(ans.priceBand);
-  const inBand=range? (p)=> (p.RetailPrice||0)>=range[0] && (p.RetailPrice||0)<range[1] : ()=>true;
-  const sameUse=range?sameMatAll.filter(inBand):sameMatAll;
-  const otherUse=range?otherMatAll.filter(inBand):otherMatAll;
-
-  const sameMains = sameUse.length? sameUse : sameMatAll;
-  const otherMains= otherUse.length? otherUse: otherMatAll;
-
-  const usedAcc=new Set();
-  const group=(m)=>{
-    const key=normBC(m._barcode_norm||m.Barcode);
-    const nipples=accsPool.filter(a=>!usedAcc.has(normBC(a._barcode_norm||a.Barcode)) && isNipple(a) && parseAcc(a).includes(key));
-    nipples.forEach(n=>usedAcc.add(normBC(n._barcode_norm||n.Barcode)));
-    const others =accsPool.filter(a=>!usedAcc.has(normBC(a._barcode_norm||a.Barcode)) && !isNipple(a) && parseAcc(a).includes(key));
-    others.forEach(o=>usedAcc.add(normBC(o._barcode_norm||o.Barcode)));
-    return [m,...nipples,...others];
+  // 젖병(Main) 판별: 이름/카테고리에 bottle 키워드가 있으면 젖병으로 간주
+  const isBottle = (p) => {
+    const name = norm(p?.Name);
+    const cat = norm(String(p?.CategoryRaw ?? p?.Category ?? ""));
+    return /bottle|feeding\s*bottle/.test(name) || /bottle/.test(cat);
   };
 
-  let ordered=[];
-  for(const m of sameMains)  ordered.push(...group(m));
-  for(const m of otherMains) ordered.push(...group(m));
+  const mainsAll = products.filter(
+    (p) => normalizeType(p.Type || p["Main/Acc. Item"]) === "Main"
+  );
+  const accsAll = products.filter(
+    (p) => normalizeType(p.Type || p["Main/Acc. Item"]) === "Acc."
+  );
 
-  const remaining=accsPool.filter(a=>!usedAcc.has(normBC(a._barcode_norm||a.Barcode)));
-  const seen=new Set(), out=[];
-  for(const x of [...ordered,...remaining]){const bc=normBC(x._barcode_norm||x.Barcode); if(!bc||seen.has(bc)) continue; seen.add(bc); out.push(x);}
+  // 설문 카테고리 범위
+  const surveyCat = categoryFromQ12(ans.category);
+  let mainsPool = [...mainsAll];
+  if (surveyCat) {
+    const within = mainsPool.filter(
+      (p) => normalizeCategory(p.Category) === surveyCat
+    );
+    if (within.length) mainsPool = within;
+  }
+  const accsPool = [...accsAll];
+
+  // 소재/가격/용량 정규화
+  const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
+  const sameMatAll = targetMat
+    ? mainsPool.filter((m) => normalizeMaterial(m.Material) === targetMat)
+    : [...mainsPool];
+  const otherMatAll = targetMat
+    ? mainsPool.filter((m) => normalizeMaterial(m.Material) !== targetMat)
+    : [];
+
+  const targetVol = capacityByAge(ans.ageStage);
+  const byVol = (a, b) => {
+    const av = typeof a.Volume === "number" ? a.Volume : targetVol;
+    const bv = typeof b.Volume === "number" ? b.Volume : targetVol;
+    return Math.abs(av - targetVol) - Math.abs(bv - targetVol);
+  };
+  sameMatAll.sort(byVol);
+  otherMatAll.sort(byVol);
+
+  const range = priceBandToRange(ans.priceBand);
+  const inBand = range
+    ? (p) => (p.RetailPrice || 0) >= range[0] && (p.RetailPrice || 0) < range[1]
+    : () => true;
+  const sameUse = range ? sameMatAll.filter(inBand) : sameMatAll;
+  const otherUse = range ? otherMatAll.filter(inBand) : otherMatAll;
+
+  // ── 젖병/비젖병으로 분리 후 우선순 정렬 ─────────────────────────────
+  const mainsSameMat = sameUse.length ? sameUse : sameMatAll;
+  const mainsOtherMat = otherUse.length ? otherUse : otherMatAll;
+
+  const bottleSame = mainsSameMat.filter(isBottle).sort(byVol);
+  const bottleOther = mainsOtherMat.filter(isBottle).sort(byVol);
+  const nonBottleSame = mainsSameMat.filter((m) => !isBottle(m)).sort(byVol);
+  const nonBottleOther = mainsOtherMat.filter((m) => !isBottle(m)).sort(byVol);
+
+  // 최종 Main 우선순위: 젖병(소재 일치) → 젖병(소재 불일치) → 기타 Main(소재 일치) → 기타 Main(소재 불일치)
+  const orderedMain = [
+    ...bottleSame,
+    ...bottleOther,
+    ...nonBottleSame,
+    ...nonBottleOther,
+  ];
+
+  // ── Main 뒤에 Acc. 붙이기(니플 → 기타 순) ─────────────────────────
+  const usedAcc = new Set();
+  const accessoriesForMain = (m) => {
+    const key = normBC(m._barcode_norm || m.Barcode);
+    const list = accsPool.filter(
+      (a) =>
+        parseAcc(a).includes(key) &&
+        !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
+    );
+    const nipples = list.filter(isNipple);
+    const others = list.filter((a) => !isNipple(a));
+    nipples.forEach((n) => usedAcc.add(normBC(n._barcode_norm || n.Barcode)));
+    others.forEach((o) => usedAcc.add(normBC(o._barcode_norm || o.Barcode)));
+    return [...nipples, ...others];
+  };
+
+  let ordered = [...orderedMain];
+  for (const m of orderedMain) ordered.push(...accessoriesForMain(m));
+
+  // 매칭되지 않은 나머지 Acc. 추가
+  const remaining = accsPool.filter(
+    (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
+  );
+
+  // 중복 제거(바코드 기준)
+  const seen = new Set();
+  const out = [];
+  for (const x of [...ordered, ...remaining]) {
+    const bc = normBC(x._barcode_norm || x.Barcode);
+    if (!bc || seen.has(bc)) continue;
+    seen.add(bc);
+    out.push(x);
+  }
   return out;
 }
 
