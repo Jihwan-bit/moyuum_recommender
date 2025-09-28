@@ -636,6 +636,7 @@ export default function App(){
           {!!selected.length && (
             <div className="card" style={{marginTop:12}}>
               <h2>Cart</h2>
+              <div className="tableWrap">
               <table className="table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Total</th><th/></tr></thead>
                 <tbody>
@@ -653,6 +654,7 @@ export default function App(){
                   ))}
                 </tbody>
               </table>
+              </div>
 
               <div className="actions">
                 <button className="btn ghost wide" onClick={()=>setStep("review")}>{t.back}</button>
