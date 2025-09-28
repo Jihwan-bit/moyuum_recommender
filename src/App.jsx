@@ -72,7 +72,10 @@ const GlobalStyles = () => (
     .btn:hover{filter:brightness(1.05);box-shadow:0 0 0 4px var(--ring2)}
     .btn.ghost{background:#fff;color:#2a5fd6;border:2px solid var(--brand)}
     .btn.mute{background:#eef2ff;color:#111;border:2px solid #eef2ff}
-    .actions{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px}
+    .actions{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+    /* 폭 자동 버튼(Back 전용) */
+    .btn.fit{min-width:auto;padding:10px 14px}
+    @media (max-width:420px){ .btn.fit{padding:8px 12px} }
     .wide{min-width:180px;font-weight:700} /* 220 → 180 */
 
     /* contact QR도 살짝 축소 */
