@@ -178,20 +178,38 @@ function recommend(ans, products) {
           .map(normBC)
           .filter(Boolean);
 
+  // ---------- 타입 판별 도우미 ----------
   const isNipple = (p) =>
     (/nipple|teat|젖꼭지|노즐/i.test(String(p?.Name || "")) ||
       /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
     /bottle|feeding/i.test(String(p?.Category || ""));
 
-  // 메인 제품의 유형 판별(정렬 우선순위에 사용)
   const isBottleMain = (p) =>
     /bottle/i.test(String(p?.Category || "")) ||
     /bottle/i.test(String(p?.Name || ""));
+
   const isStrawMain = (p) =>
     /(straw|one[\s-]?touch)/i.test(String(p?.Name || "")) ||
     /(straw|cup)/i.test(String(p?.Category || ""));
 
-  // 바코드 기준 중복 제거(순서 보존)
+  const isPacifier = (p) =>
+    /(pacifier|soother|binky|젖꼭지)/i.test(String(p?.Name || "")) ||
+    /pacifier/i.test(String(p?.Category || ""));
+
+  const isTeether = (p) =>
+    /(teether|teething|치발기)/i.test(String(p?.Name || "")) ||
+    /teether/i.test(String(p?.Category || ""));
+
+  const isMilkPowderCase = (p) =>
+    /(milk\s*powder|formula)\s*(case|container|dispenser)/i.test(String(p?.Name || "")) ||
+    /(powder\s*case)/i.test(String(p?.Name || "")) ||
+    /powder\s*case/i.test(String(p?.Category || ""));
+
+  const isBrush = (p) =>
+    /(brush|세척브러시|브러시)/i.test(String(p?.Name || "")) ||
+    /brush/i.test(String(p?.Category || ""));
+
+  // ---------- 중복 제거(바코드 기준, 순서 보존) ----------
   const dedupByBC = (arr) => {
     const seen = new Set();
     const out = [];
@@ -204,7 +222,7 @@ function recommend(ans, products) {
     return out;
   };
 
-  // 제품 라인(군) 키: 이름에서 용량/사이즈 토큰 제거
+  // ---------- 메인 제품 라인 묶기 ----------
   const baseKeyFromName = (p) => {
     const raw = String(p?.NameEN || p?.Name || "").toLowerCase();
     return raw
@@ -221,6 +239,7 @@ function recommend(ans, products) {
     return m ? Number(m[1]) : NaN;
   };
 
+  // ---------- 풀 만들기 ----------
   const mainsAll = products.filter(
     (p) => normalizeType(p.Type || p["Main/Acc. Item"]) === "Main"
   );
@@ -236,8 +255,11 @@ function recommend(ans, products) {
     );
     if (within.length) mainsPool = within;
   }
+  // 프리룰(Outing/Hygiene)용으로는 타입 구분 없이 전체에서 찾기
+  const allPool = dedupByBC([...mainsPool, ...accsAll]);
   const accsPool = dedupByBC(accsAll);
 
+  // ---------- 소재/가격대 필터 ----------
   const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
   const sameMatAll = targetMat
     ? mainsPool.filter((m) => normalizeMaterial(m.Material) === targetMat)
@@ -264,10 +286,12 @@ function recommend(ans, products) {
     }
     const keys = [...map.keys()];
     return keys.map((k) => {
-      const list = map.get(k).slice().sort((a, b) => (volNum(a) || 9999) - (volNum(b) || 9999));
-      // 그룹의 대표 타입(병/빨대/기타) 태깅
+      const list = map
+        .get(k)
+        .slice()
+        .sort((a, b) => (volNum(a) || 9999) - (volNum(b) || 9999));
       const hasBottle = list.some(isBottleMain);
-      const hasStraw  = list.some(isStrawMain);
+      const hasStraw = list.some(isStrawMain);
       let gtype = "other";
       if (hasBottle && !hasStraw) gtype = "bottle";
       else if (hasStraw && !hasBottle) gtype = "straw";
@@ -279,27 +303,55 @@ function recommend(ans, products) {
   const sameGroups = groupMains(sameUse.length ? sameUse : sameMatAll);
   const otherGroups = groupMains(otherUse.length ? otherUse : otherMatAll);
 
-  // === 연령대/피딩일 때의 그룹 우선순위 ===
-  const feedingSelected = categoryFromQ12(ans.category) === "Feeding";
-  const early = [1, 2, 3].includes(ans.ageStage);
-  const late  = [4, 5, 6].includes(ans.ageStage);
+  // ---------- 기본(피딩) 우선순위(유지) ----------
+  const feedingSelected = surveyCat === "Feeding";
+  const early = [1, 2, 3].includes(ans.ageStage); // 0–12개월
+  const late = [4, 5, 6].includes(ans.ageStage); // 13개월 이상
 
-  const groupWeight = (g) => {
-    if (!feedingSelected) return 1; // 기존 순서 유지
+  const baseGroupWeight = (g) => {
+    if (!feedingSelected) return 1;
     if (early) {
       if (g.gtype === "bottle") return 0;
-      if (g.gtype === "straw")  return 1;
+      if (g.gtype === "straw") return 1;
       return 2;
     }
     if (late) {
-      if (g.gtype === "straw")  return 0;
+      if (g.gtype === "straw") return 0;
       if (g.gtype === "bottle") return 1;
       return 2;
     }
     return 1;
   };
 
-  // 선호소재 그룹·기타소재 그룹 각각 우선순위로 정렬
+  // ---------- Outing/Hygiene 전용 우선순위 ----------
+  const outingSelected = surveyCat === "Outing";
+  const hygieneSelected = surveyCat === "Hygiene";
+
+  // 그룹 정렬 함수 (카테고리별 가중치 오버라이드)
+  const groupWeight = (g) => {
+    if (outingSelected) {
+      // 1) 12개월 초과면 Straw 우선, 그 뒤 Bottle, 나머지
+      if (late) {
+        if (g.gtype === "straw") return -10;
+        if (g.gtype === "bottle") return -9;
+        return -8;
+      }
+      // 2) 0–12개월이면 병/컵은 뒤쪽(프리룰: Pacifier/Teether/Milk Powder Case가 먼저 나감)
+      if (early) {
+        if (g.gtype === "straw") return 10;
+        if (g.gtype === "bottle") return 11;
+        return 12;
+      }
+      return 0;
+    }
+    if (hygieneSelected) {
+      // 브러시/패시파이어는 프리룰에서 먼저 처리 → 메인 그룹은 기본 가중치로
+      return 0;
+    }
+    // 기본(피딩 등)은 기존 로직
+    return baseGroupWeight(g);
+  };
+
   const sortGroups = (groups) =>
     groups
       .slice()
@@ -307,14 +359,15 @@ function recommend(ans, products) {
         const wa = groupWeight(a);
         const wb = groupWeight(b);
         if (wa !== wb) return wa - wb;
-        return a.key.localeCompare(b.key); // 동일 우선순위면 알파벳
+        return a.key.localeCompare(b.key);
       });
 
   const sameSorted = sortGroups(sameGroups);
   const otherSorted = sortGroups(otherGroups);
 
-  // 악세서리 중복/재사용 방지
+  // ---------- 악세서리 연결 & 중복 방지 ----------
   const usedAcc = new Set();
+  const usedAny = new Set(); // 프리룰 포함 전체 중복 방지
 
   const accessoriesForMain = (m) => {
     const keyBC = normBC(m._barcode_norm || m.Barcode);
@@ -323,34 +376,105 @@ function recommend(ans, products) {
     return uniq.filter((a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode)));
   };
 
+  const pushSafely = (arr, item) => {
+    const bc = normBC(item?._barcode_norm || item?.Barcode);
+    if (!bc || usedAny.has(bc)) return;
+    usedAny.add(bc);
+    arr.push(item);
+  };
+
   const pushGroup = (group, out) => {
     // 1) 메인들 먼저
-    for (const m of group.mains) out.push(m);
+    for (const m of group.mains) pushSafely(out, m);
 
     // 2) 그룹 악세서리(니플 → 기타)
     const accs = [];
     for (const m of group.mains) accs.push(...accessoriesForMain(m));
     const uniqAccs = dedupByBC(accs);
     const nipples = uniqAccs.filter(isNipple);
-    const others  = uniqAccs.filter((a) => !isNipple(a));
+    const others = uniqAccs.filter((a) => !isNipple(a));
 
     for (const a of [...nipples, ...others]) {
-      out.push(a);
+      pushSafely(out, a);
       usedAcc.add(normBC(a._barcode_norm || a.Barcode));
     }
   };
 
-  const ordered = [];
-  for (const g of sameSorted) pushGroup(g, ordered); // 선호 소재 먼저
-  for (const g of otherSorted) pushGroup(g, ordered); // 그 외 소재
+  // ---------- 프리룰(Outing / Hygiene) ----------
+  const prelude = [];
 
-  // 남은 악세서리 뒤에(중복 방지)
+  if (outingSelected) {
+    if (early) {
+      // B. 0–12개월: Pacifier → Teether → Milk Powder Case
+      const pacis = allPool.filter(isPacifier);
+      const teeth = allPool.filter(isTeether);
+      const powders = allPool.filter(isMilkPowderCase);
+      for (const it of dedupByBC([...pacis, ...teeth, ...powders])) pushSafely(prelude, it);
+    } else if (late) {
+      // C. 12개월 초과: Straw Cup 먼저, 그 뒤 Pacifier/Teether, 이후 기타
+      // Straw 메인 그룹(선호소재 → 기타소재 순서)만 추출해 먼저 밀어넣기
+      const pickStrawGroups = (groups) => groups.filter((g) => g.gtype === "straw");
+      for (const g of pickStrawGroups(sameSorted)) pushGroup(g, prelude);
+      for (const g of pickStrawGroups(otherSorted)) pushGroup(g, prelude);
+
+      const pacis = allPool.filter(isPacifier);
+      const teeth = allPool.filter(isTeether);
+      for (const it of dedupByBC([...pacis, ...teeth])) pushSafely(prelude, it);
+      // 나머지는 뒤에서 일반 그룹 순서에 따라 이어붙임
+    } else {
+      // 명시 안 된 경우: A. Pacifier, Teether, Milk Powder Case → Straw/Bottle → 기타
+      const pacis = allPool.filter(isPacifier);
+      const teeth = allPool.filter(isTeether);
+      const powders = allPool.filter(isMilkPowderCase);
+      for (const it of dedupByBC([...pacis, ...teeth, ...powders])) pushSafely(prelude, it);
+    }
+  }
+
+  if (hygieneSelected) {
+    // A. Brush 먼저 (선호 소재 매칭 우선)
+    const brushes = allPool.filter(isBrush);
+    const brushesSorted = brushes.slice().sort((a, b) => {
+      const am = normalizeMaterial(a.Material);
+      const bm = normalizeMaterial(b.Material);
+      const aw = targetMat && am === targetMat ? 0 : 1;
+      const bw = targetMat && bm === targetMat ? 0 : 1;
+      return aw - bw;
+    });
+    for (const it of dedupByBC(brushesSorted)) pushSafely(prelude, it);
+
+    // B. 그 다음 Pacifier
+    const pacis = allPool.filter(isPacifier);
+    for (const it of dedupByBC(pacis)) pushSafely(prelude, it);
+    // C. 나머지는 뒤에서 이어붙임
+  }
+
+  // ---------- 본편(그룹) 구성 ----------
+  const ordered = [];
+  // 0) 프리룰 먼저
+  for (const it of prelude) pushSafely(ordered, it);
+
+  // 1) 선호 소재 그룹
+  for (const g of sameSorted) {
+    // Outing(late)인 경우 Straw는 이미 프리룰에서 넣었으니 스킵
+    if (outingSelected && late && g.gtype === "straw") continue;
+    pushGroup(g, ordered);
+  }
+  // 2) 기타 소재 그룹
+  for (const g of otherSorted) {
+    if (outingSelected && late && g.gtype === "straw") continue;
+    pushGroup(g, ordered);
+  }
+
+  // 3) 남은 악세서리 정리
   const remainingAccs = accsPool.filter(
     (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
   );
+  const tail = [];
+  for (const a of remainingAccs) pushSafely(tail, a);
 
-  return dedupByBC([...ordered, ...remainingAccs]);
+  return dedupByBC([...ordered, ...tail]);
 }
+
 
 /* ========== App ========== */
 export default function App(){
