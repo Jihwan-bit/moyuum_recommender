@@ -334,7 +334,7 @@ function recommend(ans, products) {
     const all = dedupByBC(products).slice();
     const pacifiers = all.filter(isPacifier);
     const teethers  = all.filter(isTeether);
-    the const milkCases = all.filter(isMilkCase);
+    const milkCases = all.filter(isMilkCase);
     const strawCups = all.filter(isStrawCup);
 
     const ordered = [];
