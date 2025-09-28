@@ -170,7 +170,7 @@ function recommend(ans, products) {
   const norm = (s) => String(s || "").trim().toLowerCase();
   const normBC = (s) => String(s || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 
-  // ---- helpers (동일) ----
+  // ---------- helpers ----------
   const parseAcc = (row) =>
     Array.isArray(row?._acc_barcodes_norm) && row._acc_barcodes_norm.length
       ? row._acc_barcodes_norm.map(normBC).filter(Boolean)
@@ -182,8 +182,7 @@ function recommend(ans, products) {
     for (const x of arr) {
       const bc = normBC(x?._barcode_norm || x?.Barcode);
       if (!bc || seen.has(bc)) continue;
-      seen.add(bc);
-      out.push(x);
+      seen.add(bc); out.push(x);
     }
     return out;
   };
@@ -225,32 +224,32 @@ function recommend(ans, products) {
   const accsAll  = products.filter(p => normalizeType(p.Type || p["Main/Acc. Item"]) === "Acc.");
 
   // 설문 파라미터
-  const surveyCat = categoryFromQ12(ans.category);
+  const surveyCat = categoryFromQ12(ans.category); // Feeding / Outing / Oral / Hygiene
   const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
-
-  // ★ 연령 임계값 분리
   const age = Number(ans.ageStage || 0);
-  const earlyOut = [1,2,3].includes(age);        // Outing 규칙(기존 유지)
-  const earlyFeed = [1,2,3,4].includes(age);     // 0–24개월
-  const lateFeed  = [5,6].includes(age);         // 25–36, Over 36
 
-  // ---- 가격 선호 정렬(하드필터 아님) ----
+  // 가격대: "하드 필터"가 아닌 "선호 정렬"
   const range = priceBandToRange(ans.priceBand);
   const priceVal = (p) => Number(p?.RetailPrice ?? 0);
   const priceDistance = (p) => {
     if (!range) return 0;
     const v = priceVal(p);
     if (v >= range[0] && v < range[1]) return 0;
-    if (v < range[0]) return range[0] - v;
-    return v - range[1];
+    return v < range[0] ? (range[0] - v) : (v - range[1]);
   };
   const pricePrefSorter = (a, b) => {
     const da = priceDistance(a), db = priceDistance(b);
-    if (da !== db) return da - db;
-    return priceVal(a) - priceVal(b);
+    if (da !== db) return da - db;          // 더 가까운 가격대 먼저
+    return priceVal(a) - priceVal(b);       // 같으면 저가 → 고가
+  };
+  const matScore = (p) => targetMat ? (normalizeMaterial(p.Material) === targetMat ? 0 : 1) : 0;
+  const matThenPrice = (a, b) => {
+    const ma = matScore(a), mb = matScore(b);
+    if (ma !== mb) return ma - mb;          // 선호 소재 우선
+    return pricePrefSorter(a, b);
   };
 
-  // 공통
+  // 공통 악세서리 관리
   const accsPool = dedupByBC(accsAll);
   const usedBC = new Set();
   const markUsed = (x) => { const bc = normBC(x._barcode_norm || x.Barcode); if (bc) usedBC.add(bc); };
@@ -260,51 +259,67 @@ function recommend(ans, products) {
     return dedupByBC(accsPool.filter(a => parseAcc(a).includes(keyBC))).filter(notUsed);
   };
 
-  // === Hygiene
+  // ===== Hygiene: Brush(선호 소재 먼저) → Pacifier → Others =====
   if (surveyCat === "Hygiene") {
-    const all = dedupByBC(products).slice().sort(pricePrefSorter);
+    const all = dedupByBC(products).slice();
     const brushesAll = all.filter(isBrush);
-    const brushesMat = targetMat ? brushesAll.filter(p => normalizeMaterial(p.Material) === targetMat) : [];
-    const brushesEtc = brushesAll.filter(p => !brushesMat.includes(p));
-    const pacifiers  = all.filter(isPacifier).sort(pricePrefSorter);
+    const pacifiers  = all.filter(isPacifier);
 
     const ordered = [];
-    const push = (list) => list.forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
-    push(brushesMat.sort(pricePrefSorter));
-    push(brushesEtc.sort(pricePrefSorter));
+    const push = (list) => list.sort(matThenPrice)
+      .forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
+
+    // Brush(선호 소재 일치 우선) → Pacifier → 나머지
+    push(brushesAll);
     push(pacifiers);
-    push(all.filter(p => notUsed(p) && !isBrush(p) && !isPacifier(p)).sort(pricePrefSorter));
+    push(all.filter(p => notUsed(p) && !isBrush(p) && !isPacifier(p)).sort(matThenPrice));
     return ordered;
   }
 
-  // === Outing (기존 임계값 유지: 0–12개월 vs 12개월 초과)
+  // ===== Outing: 0–12개월 Pacifier/Teether, 이후 Straw 우선 =====
   if (surveyCat === "Outing") {
-    const all = dedupByBC(products).slice().sort(pricePrefSorter);
-    const pacifiers = all.filter(isPacifier).sort(pricePrefSorter);
-    const teethers  = all.filter(isTeether).sort(pricePrefSorter);
-    const milkCases = all.filter(isMilkCase).sort(pricePrefSorter);
-    const strawCups = all.filter(isStrawCup).sort(pricePrefSorter);
+    const all = dedupByBC(products).slice();
+    const pacifiers = all.filter(isPacifier);
+    const teethers  = all.filter(isTeether);
+    const milkCases = all.filter(isMilkCase);
+    const strawCups = all.filter(isStrawCup);
 
     const ordered = [];
-    const push = (list) => list.forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
+    const push = (list) => list.sort(matThenPrice)
+      .forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
 
+    const earlyOut = [1,2,3].includes(age); // 0–12
     if (earlyOut) { push(pacifiers); push(teethers); push(milkCases); }
     else          { push(strawCups); push(pacifiers); push(teethers); }
 
-    push(all.filter(p => notUsed(p) && !isPacifier(p) && !isTeether(p) && !isMilkCase(p) && !isStrawCup(p)).sort(pricePrefSorter));
+    push(all.filter(p => notUsed(p) && !isPacifier(p) && !isTeether(p) && !isMilkCase(p) && !isStrawCup(p)).sort(matThenPrice));
     return ordered;
   }
 
-  // === Feeding/Oral: 라인 묶기 + (★) 25–36부터 straw 우선
+  // ===== Oral: Pacifier → Teether → Others (소재 우선 + 가격 근접)  ←★ 신규/수정 핵심
+  if (surveyCat === "Oral") {
+    const all = dedupByBC(products).slice();
+    const pacifiers = all.filter(isPacifier);
+    const teethers  = all.filter(isTeether);
+
+    const ordered = [];
+    const push = (list) => list.sort(matThenPrice)
+      .forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
+
+    push(pacifiers);
+    push(teethers);
+    push(all.filter(p => notUsed(p) && !isPacifier(p) && !isTeether(p)).sort(matThenPrice));
+    return ordered;
+  }
+
+  // ===== Feeding(및 그 외 기본): 품목 우선(0–24: bottle, 25–36+: straw) → 소재 가산점 → 가격 근접
   let mainsPool = [...mainsAll];
   if (surveyCat) {
     const within = mainsPool.filter(p => normalizeCategory(p.Category) === surveyCat);
     if (within.length) mainsPool = within;
   }
-  const sameMatMains  = targetMat ? mainsPool.filter(m => normalizeMaterial(m.Material) === targetMat) : mainsPool.slice();
-  const otherMatMains = targetMat ? mainsPool.filter(m => normalizeMaterial(m.Material) !== targetMat) : [];
 
-  const groupBottleLines = (arr) => {
+  const groupLines = (arr) => {
     const map = new Map();
     for (const m of arr) {
       const key = baseKeyFromName(m) || name(m) || m.Barcode;
@@ -319,43 +334,45 @@ function recommend(ans, products) {
       if (hasBottle && !hasStraw) gtype = "bottle";
       else if (hasStraw && !hasBottle) gtype = "straw";
       else if (hasBottle && hasStraw) gtype = "mixed";
+      const materialMatch = targetMat ? list.some(m => normalizeMaterial(m.Material) === targetMat) : true;
       const gPriceScore = Math.min(...list.map(priceDistance));
-      return { key:k, mains:list, gtype, gPriceScore };
+      return { key:k, mains:list, gtype, materialMatch, gPriceScore };
     });
   };
 
-  const sameGroups  = groupBottleLines(sameMatMains);
-  const otherGroups = groupBottleLines(otherMatMains);
+  const groups = groupLines(mainsPool);
 
-  // ★ 수정된 가중치: 0–24개월(bottle 우선) / 25–36+(straw 우선)
-  const groupWeight = (g) => {
-    if (!["Feeding","Oral"].includes(surveyCat || "")) return 1;
+  // 0–24개월: bottle 최우선, 25–36+: straw 최우선
+  const earlyFeed = [1,2,3,4].includes(age);
+  const lateFeed  = [5,6].includes(age);
+
+  const baseWeight = (g) => {
+    if (!(surveyCat === "Feeding")) return 2;
     if (earlyFeed) { if (g.gtype === "bottle") return 0; if (g.gtype === "straw") return 1; return 2; }
     if (lateFeed)  { if (g.gtype === "straw")  return 0; if (g.gtype === "bottle") return 1; return 2; }
-    return 1;
+    return 2;
   };
 
-  const sortGroups = (groups) =>
-    groups.slice().sort((a,b) => {
-      const wa = groupWeight(a), wb = groupWeight(b);
-      if (wa !== wb) return wa - wb;
-      if (a.gPriceScore !== b.gPriceScore) return a.gPriceScore - b.gPriceScore;
-      return a.key.localeCompare(b.key);
-    });
+  const groupsSorted = groups.slice().sort((a,b) => {
+    const wa = baseWeight(a), wb = baseWeight(b);
+    if (wa !== wb) return wa - wb;
+    if (a.materialMatch !== b.materialMatch) return a.materialMatch ? -1 : 1;
+    if (a.gPriceScore !== b.gPriceScore) return a.gPriceScore - b.gPriceScore;
+    return a.key.localeCompare(b.key);
+  });
 
   const ordered = [];
   const pushGroup = (g) => {
     for (const m of g.mains) if (notUsed(m)) { ordered.push(m); markUsed(m); }
     const accs = [];
     for (const m of g.mains) accs.push(...accessoriesForMain(m));
-    const uniq   = dedupByBC(accs).filter(notUsed);
-    const nipples= uniq.filter(isNipple).sort(pricePrefSorter);
-    const others = uniq.filter(a => !isNipple(a)).sort(pricePrefSorter);
+    const uniq = dedupByBC(accs).filter(notUsed);
+    const nipples = uniq.filter(isNipple).sort(pricePrefSorter);
+    const others  = uniq.filter(a => !isNipple(a)).sort(pricePrefSorter);
     for (const a of [...nipples, ...others]) if (notUsed(a)) { ordered.push(a); markUsed(a); }
   };
 
-  for (const g of sortGroups(sameGroups))  pushGroup(g);
-  for (const g of sortGroups(otherGroups)) pushGroup(g);
+  for (const g of groupsSorted) pushGroup(g);
 
   const restAccs = accsPool.filter(notUsed).sort(pricePrefSorter);
   for (const a of restAccs) if (notUsed(a)) { ordered.push(a); markUsed(a); }
@@ -365,7 +382,6 @@ function recommend(ans, products) {
 
   return ordered;
 }
-
 
 /* ========== App ========== */
 export default function App(){
