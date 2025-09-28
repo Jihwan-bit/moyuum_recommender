@@ -183,7 +183,7 @@ function recommend(ans, products) {
       /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
     /bottle|feeding/i.test(String(p?.Category || ""));
 
-  // ---- 공통: 바코드 기준 안정적 중복 제거(등장 순서 보존)
+  // 바코드 기준 안정적 중복 제거(등장 순서 보존)
   const dedupByBC = (arr) => {
     const seen = new Set();
     const out = [];
@@ -194,6 +194,24 @@ function recommend(ans, products) {
       out.push(x);
     }
     return out;
+  };
+
+  // 동일 라인(제품군) 키 만들기: 이름에서 용량/사이즈 토큰을 제거해 라인명을 추출
+  const baseKeyFromName = (p) => {
+    const raw = String(p?.NameEN || p?.Name || "").toLowerCase();
+    return raw
+      .replace(/\b\d{2,4}\s*(ml|oz)\b/g, "") // 150ml, 8oz 등
+      .replace(/\b(xl|l|m|s)\b/g, "")        // 단독 사이즈 토큰
+      .replace(/\([\s\S]*?\)/g, "")          // 괄호 설명(종종 용량/에디션)
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // 볼륨 비교용 숫자 추출(없으면 NaN)
+  const volNum = (p) => {
+    if (typeof p?.Volume === "number") return p.Volume;
+    const m = String(p?.Name || "").match(/(\d{2,4})\s*ml/i);
+    return m ? Number(m[1]) : NaN;
   };
 
   const mainsAll = products.filter(
@@ -214,74 +232,86 @@ function recommend(ans, products) {
   const accsPool = dedupByBC(accsAll); // 데이터 중복행 보호
 
   const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
-  const sameMat = targetMat
+  const sameMatAll = targetMat
     ? mainsPool.filter((m) => normalizeMaterial(m.Material) === targetMat)
     : [...mainsPool];
-  const otherMat = targetMat
+  const otherMatAll = targetMat
     ? mainsPool.filter((m) => normalizeMaterial(m.Material) !== targetMat)
     : [];
-
-  const targetVol = capacityByAge(ans.ageStage);
-  const byVol = (a, b) => {
-    if (!targetVol) return 0;
-    const av = typeof a.Volume === "number" ? a.Volume : targetVol;
-    const bv = typeof b.Volume === "number" ? b.Volume : targetVol;
-    return Math.abs(av - targetVol) - Math.abs(bv - targetVol);
-  };
-  sameMat.sort(byVol);
-  otherMat.sort(byVol);
 
   const range = priceBandToRange(ans.priceBand);
   const inBand = range
     ? (p) => (p.RetailPrice || 0) >= range[0] && (p.RetailPrice || 0) < range[1]
     : () => true;
 
-  const sameUse = sameMat.filter(inBand);
-  const otherUse = otherMat.filter(inBand);
+  const sameUse = sameMatAll.filter(inBand);
+  const otherUse = otherMatAll.filter(inBand);
 
-  // ---- 악세서리 재사용/중복 방지
-  const usedAcc = new Set();
-
-  const accessoriesForMain = (m) => {
-    const key = normBC(m._barcode_norm || m.Barcode);
-
-    // 1) 연결된 악세서리 수집
-    const linked = accsPool.filter((a) => parseAcc(a).includes(key));
-    // 2) 바코드 기준 중복 제거(데이터 중복행 방지)
-    const uniqueLinked = dedupByBC(linked);
-    // 3) 이미 사용된 악세서리 제거(여러 메인 연결 시 첫 메인에만 붙임)
-    const fresh = uniqueLinked.filter(
-      (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
-    );
-
-    // 4) 니플 → 기타 정렬
-    const nipples = fresh.filter(isNipple);
-    const others = fresh.filter((a) => !isNipple(a));
-
-    // 5) 이번 메인에 붙이는 순간 usedAcc에 즉시 등록
-    for (const a of [...nipples, ...others]) {
-      usedAcc.add(normBC(a._barcode_norm || a.Barcode));
+  // 메인을 라인(baseKey)으로 묶고, 라인 내에서는 볼륨 오름차순
+  const groupMains = (arr) => {
+    const map = new Map();
+    for (const m of arr) {
+      const key = baseKeyFromName(m) || norm(m.Name || m.Barcode);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(m);
     }
-    return [...nipples, ...others];
+    // 정렬: 라인 키 알파벳 → 그룹 내 볼륨 asc
+    const keys = [...map.keys()].sort();
+    return keys.map((k) => {
+      const list = map.get(k).slice().sort((a, b) => (volNum(a) || 9999) - (volNum(b) || 9999));
+      return { key: k, mains: list };
+    });
   };
 
-  const pushMainThenAccs = (bucket, outArr) => {
-    for (const m of bucket) {
-      outArr.push(m);
-      outArr.push(...accessoriesForMain(m));
+  const sameGroups = groupMains(sameUse.length ? sameUse : sameMatAll);
+  const otherGroups = groupMains(otherUse.length ? otherUse : otherMatAll);
+
+  // 악세서리 재사용/중복 방지
+  const usedAcc = new Set();
+
+  // 특정 메인에 연결된 악세서리 수집(그룹 뒤에 한꺼번에 붙일 용도)
+  const accessoriesForMain = (m) => {
+    const keyBC = normBC(m._barcode_norm || m.Barcode);
+    const linked = accsPool.filter((a) => parseAcc(a).includes(keyBC));
+    // 데이터 중복행 제거
+    const uniq = dedupByBC(linked);
+    // 아직 사용되지 않은 것만
+    return uniq.filter((a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode)));
+  };
+
+  // 그룹을 처리: 메인들을 먼저 → 이어서 그룹 악세(니플→기타)
+  const pushGroup = (group, out) => {
+    // 1) 메인 먼저 모두
+    for (const m of group.mains) out.push(m);
+
+    // 2) 그룹 악세서리 모으기(중복 제거)
+    const accs = [];
+    for (const m of group.mains) accs.push(...accessoriesForMain(m));
+    const uniqAccs = dedupByBC(accs);
+
+    // 3) 니플 먼저, 그 다음 기타
+    const nipples = uniqAccs.filter(isNipple);
+    const others = uniqAccs.filter((a) => !isNipple(a));
+
+    // 4) 붙이면서 사용 처리
+    for (const a of [...nipples, ...others]) {
+      out.push(a);
+      usedAcc.add(normBC(a._barcode_norm || a.Barcode));
     }
   };
 
   const ordered = [];
-  pushMainThenAccs(sameUse.length ? sameUse : sameMat, ordered);
-  pushMainThenAccs(otherUse.length ? otherUse : otherMat, ordered);
+  // 선호 소재 그룹들 우선
+  for (const g of sameGroups) pushGroup(g, ordered);
+  // 그 다음 다른 소재 그룹들
+  for (const g of otherGroups) pushGroup(g, ordered);
 
-  // 남은 악세서리(아무 메인에도 연결되지 않았거나 범위를 벗어난 것)
+  // 남은 악세서리(어느 메인에도 연결 안 되었거나 이미 사용 영역 밖) 정리해서 뒤에
   const remainingAccs = accsPool.filter(
     (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
   );
 
-  // 최종 한 번 더 바코드 기준 중복 제거(메인/악세서리 전체)
+  // 최종: 바코드 기준 한 번 더 dedup
   return dedupByBC([...ordered, ...remainingAccs]);
 }
 
