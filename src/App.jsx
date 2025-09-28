@@ -12,14 +12,15 @@ const GlobalStyles = () => (
     }
     *{box-sizing:border-box;font-family:Inter,"Noto Sans Khmer",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
     body{
-      margin:0;color:var(--text);overflow-x:hidden; /* ← 모바일 잘림 방지 */
+      margin:0;color:var(--text);
       background:
         radial-gradient(1200px 600px at -10% -10%,#e9f3ff 0%,transparent 60%),
         radial-gradient(900px 500px at 110% 0%,#f7fff9 0%,transparent 55%),
         #f7f9ff;
+      overflow-x:hidden; /* 모바일 가로 스크롤 방지 */
     }
 
-    /* 전체 폭·여백을 살짝 축소 */
+    /* 전체 폭·여백을 살짝 축소(모바일 잘림 방지) */
     .wrap{max-width:980px;margin:22px auto;padding:12px}
 
     .topbar{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-bottom:10px}
@@ -31,41 +32,40 @@ const GlobalStyles = () => (
     h1{font-size:24px;margin:4px 0 10px} h2{font-size:18px;margin:0 0 8px}
     .muted{color:var(--muted);font-size:12px}
 
-    /* 그리드 최소 폭을 220 → 200으로 축소 */
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+    /* 그리드 최소 폭을 220 → 190으로 축소 (모바일 카드 잘림 방지) */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px}
 
-    /* 표: 모바일에서 가로 스크롤 허용 */
-    .table{width:100%;border-collapse:collapse}
-    .table th,.table td{border-bottom:1px solid #edf2ff;padding:9px;text-align:left}
-    @media (max-width: 480px){
-      .table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
-    }
-
-    /* === Cart table: mobile-safe === */
-    .tableWrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
-    .table{min-width:600px}
-    .table th,.table td{word-break:break-word}
-    
-    /* 더 작은 화면에서 패딩/최소폭 살짝 축소 */
-    @media (max-width:480px){
-    .table{min-width:520px}
-    .table th,.table td{padding:8px 6px}
-    .btn.ghost{padding:8px 10px}
-    }
-
+    /* 표 기본 */
+    .table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .table th,.table td{border-bottom:1px solid #edf2ff;padding:9px;text-align:left;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere}
     .price{font-variant-numeric:tabular-nums}
 
-    .imgpair{display:flex;gap:8px}
-    /* 이미지 프레임 92 → 84로 축소 */
-    .imgframe{width:84px;height:84px;border:1px solid #edf2ff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
+    /* 모바일에서 테이블을 '줄바꿈 카드' 스타일로 변환: 좌우 스크롤 없이 표시 */
+    @media (max-width:560px){
+      .table.resp thead{display:none}
+      .table.resp tbody tr{
+        display:grid;
+        grid-template-columns: 1fr auto; /* 왼쪽 내용, 오른쪽 수량/버튼 */
+        row-gap:8px;
+        padding:6px 0;
+      }
+      .table.resp tbody tr td{display:block;border-bottom:none;padding:4px 0}
+      .table.resp tbody tr td.actionsCell{justify-self:end}
+      .table.resp tbody tr td.qtyCell{justify-self:end}
+      .table.resp tfoot, .table.resp caption{display:block}
+    }
+
+    .imgpair{display:flex;gap:8px;flex-wrap:wrap}
+    /* 이미지 프레임 92 → 82로 축소 */
+    .imgframe{width:82px;height:82px;border:1px solid #edf2ff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
     .imgframe img{width:100%;height:100%;object-fit:cover}
 
     .badge{font-size:12px;background:#ecfeff;border:1px solid #a5f3fc;color:#065f46;padding:3px 8px;border-radius:999px}
 
     /* 요약 카드 최소 폭 축소 */
-    .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+    .summaryGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
     .summaryItem{background:#f4f7ff;border:1px solid #e6ecff;border-radius:12px;padding:10px}
 
     .invoice{background:#f8fbff;border:1px dashed #cbd5e1;border-radius:14px;padding:14px}
@@ -80,17 +80,18 @@ const GlobalStyles = () => (
     .opt.selected{border-color:var(--brand);box-shadow:0 0 0 6px var(--ring)}
     .q{margin:20px 0 8px;font-weight:700}
 
+    /* 카드 제목/부제어가 칸 밖으로 튀어나가지 않도록 강제 줄바꿈 */
+    .opt strong, .opt .muted {word-break:break-word;overflow-wrap:anywhere}
+
     .btn{background:var(--brand);color:#fff;border:2px solid var(--brand);border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:var(--shadow-sm)}
     .btn:hover{filter:brightness(1.05);box-shadow:0 0 0 4px var(--ring2)}
     .btn.ghost{background:#fff;color:#2a5fd6;border:2px solid var(--brand)}
     .btn.mute{background:#eef2ff;color:#111;border:2px solid #eef2ff}
     .actions{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
-    /* 폭 자동 버튼(Back 전용) */
-    .btn.fit{min-width:auto;padding:10px 14px}
-    @media (max-width:420px){ .btn.fit{padding:8px 12px} }
+    .btn.fit{min-width:auto;padding:10px 14px} /* Back 전용 폭 자동 */
     .wide{min-width:180px;font-weight:700} /* 220 → 180 */
 
-    /* contact QR도 살짝 축소 */
+    /* contact QR도 축소 */
     .qrWrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:10px}
     .qrCard{background:#fff;border:1px solid #e6ecff;border-radius:12px;padding:12px;box-shadow:var(--shadow-sm);text-align:center}
     .qrImgBox{height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -99,15 +100,15 @@ const GlobalStyles = () => (
     /* 추가 모바일 미세 튜닝 */
     @media (max-width: 768px){
       .wrap{max-width: 640px;padding:10px}
-      .grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
-      .summaryGrid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+      .summaryGrid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
     }
     @media (max-width: 420px){
       h1{font-size:22px}
       .wide{min-width:140px}
-      .imgframe{width:78px;height:78px}
-      .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
-      .summaryGrid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+      .imgframe{width:76px;height:76px}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+      .summaryGrid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
     }
   `}</style>
 );
@@ -193,11 +194,13 @@ const FallbackImg=({sources,alt})=>{
   const [idx,setIdx]=useState(0);
   const src=sources[idx]||"";
   if(!src) return <div className="imgframe"><span className="muted">No image</span></div>;
-  return(<div><div className="imgframe"><img src={src} alt={alt||"image"} onError={()=>setIdx(i=>i+1)}/></div>
-    <div className="imgdebug"><a href={src} target="_blank" rel="noreferrer">open</a>{sources.length>1?` · trying ${idx+1}/${sources.length}`:""}</div></div>);
+  return(<div>
+    <div className="imgframe"><img src={src} alt={alt||"image"} onError={()=>setIdx(i=>i+1)}/></div>
+    <div className="imgdebug"><a href={src} target="_blank" rel="noreferrer">open</a>{sources.length>1?` · trying ${idx+1}/${sources.length}`:""}</div>
+  </div>);
 };
 
-/* Invoice / Promotion */
+/* ===== Invoice / Promotion ===== */
 function computeInvoice(lines){
   let subtotal=0; const freeLines=[]; const details=[]; const byBc=new Map();
   lines.forEach(l=>{const prev=byBc.get(l.Barcode); if(prev) prev.qty+=l.qty; else byBc.set(l.Barcode,{...l});});
@@ -216,7 +219,7 @@ function computeInvoice(lines){
   return {lines:[...byBc.values(),...freeLines], subtotal, total:subtotal, details};
 }
 
-/* Recommendation */
+/* ===== Recommendation ===== */
 function recommend(ans, products) {
   const norm = (s) => String(s || "").trim().toLowerCase();
   const normBC = (s) => String(s || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
@@ -244,8 +247,8 @@ function recommend(ans, products) {
   const isBrush     = (p) => /brush|cleaner/.test(name(p)) || /brush|clean/.test(cat(p));
   const isPacifier  = (p) => /pacifier|soother/.test(name(p)) || /pacifier/.test(cat(p));
   const isTeether   = (p) => /teether|teething/.test(name(p)) || /oral/.test(cat(p));
-  const isMilkCase  = (p) => /milk\s*powder\s*case/.test(name(p)) || /powder/.test(cat(p));
-  const isStrawCup  = (p) => /(straw|one[\s-]?touch)/.test(name(p)) || /(straw|cup)/.test(cat(p));
+  const isMilkCase  = (p) => /milk\\s*powder\\s*case/.test(name(p)) || /powder/.test(cat(p));
+  const isStrawCup  = (p) => /(straw|one[\\s-]?touch)/.test(name(p)) || /(straw|cup)/.test(cat(p));
   const isBottleMain= (p) => /bottle/.test(cat(p)) || /bottle/.test(name(p));
 
   const isNipple = (p) => {
@@ -259,16 +262,16 @@ function recommend(ans, products) {
 
   const volNum = (p) => {
     if (typeof p?.Volume === "number") return p.Volume;
-    const m = String(p?.Name || "").match(/(\d{2,4})\s*ml/i);
+    const m = String(p?.Name || "").match(/(\\d{2,4})\\s*ml/i);
     return m ? Number(m[1]) : NaN;
   };
 
   const baseKeyFromName = (p) =>
     name(p)
-      .replace(/\b\d{2,4}\s*(ml|oz)\b/g, "")
-      .replace(/\b(xl|l|m|s)\b/g, "")
-      .replace(/\([\s\S]*?\)/g, "")
-      .replace(/\s+/g, " ")
+      .replace(/\\b\\d{2,4}\\s*(ml|oz)\\b/g, "")
+      .replace(/\\b(xl|l|m|s)\\b/g, "")
+      .replace(/\\([\\s\\S]*?\\)/g, "")
+      .replace(/\\s+/g, " ")
       .trim();
 
   const mainsAll = products.filter(p => normalizeType(p.Type || p["Main/Acc. Item"]) === "Main");
@@ -320,7 +323,6 @@ function recommend(ans, products) {
     const push = (list) => list.sort(matThenPrice)
       .forEach(p => { if (notUsed(p)) { ordered.push(p); markUsed(p); } });
 
-    // Brush(선호 소재 일치 우선) → Pacifier → 나머지
     push(brushesAll);
     push(pacifiers);
     push(all.filter(p => notUsed(p) && !isBrush(p) && !isPacifier(p)).sort(matThenPrice));
@@ -332,7 +334,7 @@ function recommend(ans, products) {
     const all = dedupByBC(products).slice();
     const pacifiers = all.filter(isPacifier);
     const teethers  = all.filter(isTeether);
-    const milkCases = all.filter(isMilkCase);
+    the const milkCases = all.filter(isMilkCase);
     const strawCups = all.filter(isStrawCup);
 
     const ordered = [];
@@ -347,7 +349,7 @@ function recommend(ans, products) {
     return ordered;
   }
 
-  // ===== Oral: Pacifier → Teether → Others (소재 우선 + 가격 근접)  ←★ 신규/수정 핵심
+  // ===== Oral: Pacifier → Teether → Others =====
   if (surveyCat === "Oral") {
     const all = dedupByBC(products).slice();
     const pacifiers = all.filter(isPacifier);
@@ -363,7 +365,7 @@ function recommend(ans, products) {
     return ordered;
   }
 
-  // ===== Feeding(및 그 외 기본): 품목 우선(0–24: bottle, 25–36+: straw) → 소재 가산점 → 가격 근접
+  // ===== Feeding: 0–24개월 병 우선, 25–36+ 빨대 우선 → 소재 → 가격 근접 =====
   let mainsPool = [...mainsAll];
   if (surveyCat) {
     const within = mainsPool.filter(p => normalizeCategory(p.Category) === surveyCat);
@@ -393,9 +395,8 @@ function recommend(ans, products) {
 
   const groups = groupLines(mainsPool);
 
-  // 0–24개월: bottle 최우선, 25–36+: straw 최우선
-  const earlyFeed = [1,2,3,4].includes(age);
-  const lateFeed  = [5,6].includes(age);
+  const earlyFeed = [1,2,3,4].includes(age); // 0–24
+  const lateFeed  = [5,6].includes(age);     // 25–36+
 
   const baseWeight = (g) => {
     if (!(surveyCat === "Feeding")) return 2;
@@ -440,9 +441,9 @@ export default function App(){
   const [step,setStep]=useState("q1");       // "q1" | "q11_17" | "review" | "recs" | "invoice" | "contact"
   const [ans,setAns]=useState({}); const [db,setDb]=useState(null); const [selected,setSelected]=useState([]);
   const invoiceRef=useRef(null);
-  const BASE = import.meta.env.BASE_URL || "/";     // ★ GitHub Pages 대응
+  const BASE = import.meta.env.BASE_URL || "/";     // GitHub Pages 대응
 
-  // DB 로딩 (★ BASE 사용)
+  // DB 로딩
   useEffect(()=>{
     const tryLoad=async()=>{
       try{
@@ -485,19 +486,39 @@ export default function App(){
   const recs=useMemo(()=> db? recommend(ans,db):[],[ans,db]);
 
   // cart ops
-  const addSel=(p)=>setSelected(prev=>{const i=prev.findIndex(s=>s.Barcode===p.Barcode); if(i>=0){const c=[...prev]; c[i]={...c[i],qty:c[i].qty+1}; return c;} return [...prev,{...p,qty:1}];});
+  const addSel=(p)=>setSelected(prev=>{
+    const i=prev.findIndex(s=>s.Barcode===p.Barcode);
+    if(i>=0){const c=[...prev]; c[i]={...c[i],qty:c[i].qty+1}; return c;}
+    return [...prev,{...p,qty:1}];
+  });
   const decSel=(bc)=>setSelected(prev=>prev.map(s=>s.Barcode===bc?{...s,qty:Math.max(1,s.qty-1)}:s));
   const rmSel =(bc)=>setSelected(prev=>prev.filter(s=>s.Barcode!==bc));
 
   const invoice=useMemo(()=>computeInvoice(selected),[selected]);
   const Price=({v})=> <span className="price">${Number(v||0).toFixed(2)}</span>;
 
+  // 모바일 저장 이슈 개선: canvas.toBlob → URL.createObjectURL 다운로드
   const doExportImage=async()=>{
     const html2canvas=(await import(/* @vite-ignore */ "html2canvas")).default;
     if(!invoiceRef.current) return;
-    const canvas=await html2canvas(invoiceRef.current);
-    const url=canvas.toDataURL("image/png");
-    const a=document.createElement("a"); a.href=url; a.download="moyuum-invoice.png"; a.click();
+    const canvas=await html2canvas(invoiceRef.current,{scale:2});
+    if(canvas.toBlob){
+      canvas.toBlob((blob)=>{
+        if(!blob) return;
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url;
+        a.download="moyuum-invoice.png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      },"image/png",1);
+    }else{
+      const url=canvas.toDataURL("image/png");
+      const a=document.createElement("a"); a.href=url; a.download="moyuum-invoice.png";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
   };
 
   const ageText=(ans.ageStage? i18n[lang].q11_options[ans.ageStage-1]:"-");
@@ -648,25 +669,26 @@ export default function App(){
           {!!selected.length && (
             <div className="card" style={{marginTop:12}}>
               <h2>Cart</h2>
-              <div className="tableWrap">
-              <table className="table">
+              <table className="table resp">
                 <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Total</th><th/></tr></thead>
                 <tbody>
                   {selected.map(s=>(
                     <tr key={s.Barcode}>
                       <td>{getDisplayName(s,lang)||s.Name}</td>
-                      <td className="row"><button className="btn ghost" onClick={()=>decSel(s.Barcode)}>-</button>
-                        <span style={{minWidth:28,textAlign:'center'}}>{s.qty}</span>
-                        <button className="btn ghost" onClick={()=>addSel(s)}>+</button>
+                      <td className="qtyCell">
+                        <div className="row" style={{justifyContent:'flex-end'}}>
+                          <button className="btn ghost" onClick={()=>decSel(s.Barcode)}>-</button>
+                          <span style={{minWidth:28,textAlign:'center'}}>{s.qty}</span>
+                          <button className="btn ghost" onClick={()=>addSel(s)}>+</button>
+                        </div>
                       </td>
                       <td><Price v={s.RetailPrice}/></td>
                       <td><Price v={(s.RetailPrice||0)*s.qty}/></td>
-                      <td><button className="btn mute" onClick={()=>rmSel(s.Barcode)}>Remove</button></td>
+                      <td className="actionsCell"><button className="btn mute" onClick={()=>rmSel(s.Barcode)}>Remove</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              </div>
 
               <div className="actions">
                 <button className="btn ghost wide" onClick={()=>setStep("review")}>{t.back}</button>
@@ -705,10 +727,10 @@ export default function App(){
           </div>
 
           <div className="actions">
-            {/* 여기만 wide → fit 으로 교체 */}
-             <button className="btn ghost fit" onClick={()=>setStep("recs")}>{t.back}</button>
-             <button className="btn wide" onClick={doExportImage}>{t.exportInvoice}</button>
-             <button className="btn wide" onClick={()=>setStep("contact")}>{t.toContact}</button>
+            {/* Back 버튼은 fit(폭 자동) */}
+            <button className="btn ghost fit" onClick={()=>setStep("recs")}>{t.back}</button>
+            <button className="btn wide" onClick={doExportImage}>{t.exportInvoice}</button>
+            <button className="btn wide" onClick={()=>setStep("contact")}>{t.toContact}</button>
           </div>
         </div>
       )}
