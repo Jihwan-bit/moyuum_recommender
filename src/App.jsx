@@ -43,6 +43,18 @@ const GlobalStyles = () => (
       .table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
     }
 
+    /* === Cart table: mobile-safe === */
+    .tableWrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .table{min-width:600px}
+    .table th,.table td{word-break:break-word}
+    
+    /* 더 작은 화면에서 패딩/최소폭 살짝 축소 */
+    @media (max-width:480px){
+    .table{min-width:520px}
+    .table th,.table td{padding:8px 6px}
+    .btn.ghost{padding:8px 10px}
+    }
+
     .price{font-variant-numeric:tabular-nums}
 
     .imgpair{display:flex;gap:8px}
