@@ -181,13 +181,19 @@ function recommend(ans, products) {
   const isNipple = (p) =>
     (/nipple|teat|젖꼭지|노즐/i.test(String(p?.Name || "")) ||
       /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
-    /bottle/i.test(String(p?.Category || ""));
+    /bottle|feeding/i.test(String(p?.Category || ""));
 
-  // 젖병(Main) 판별: 이름/카테고리에 bottle 키워드가 있으면 젖병으로 간주
-  const isBottle = (p) => {
-    const name = norm(p?.Name);
-    const cat = norm(String(p?.CategoryRaw ?? p?.Category ?? ""));
-    return /bottle|feeding\s*bottle/.test(name) || /bottle/.test(cat);
+  // ---- 공통: 바코드 기준 안정적 중복 제거(등장 순서 보존)
+  const dedupByBC = (arr) => {
+    const seen = new Set();
+    const out = [];
+    for (const x of arr) {
+      const bc = normBC(x?._barcode_norm || x?.Barcode);
+      if (!bc || seen.has(bc)) continue;
+      seen.add(bc);
+      out.push(x);
+    }
+    return out;
   };
 
   const mainsAll = products.filter(
@@ -197,7 +203,6 @@ function recommend(ans, products) {
     (p) => normalizeType(p.Type || p["Main/Acc. Item"]) === "Acc."
   );
 
-  // 설문 카테고리 범위
   const surveyCat = categoryFromQ12(ans.category);
   let mainsPool = [...mainsAll];
   if (surveyCat) {
@@ -206,84 +211,78 @@ function recommend(ans, products) {
     );
     if (within.length) mainsPool = within;
   }
-  const accsPool = [...accsAll];
+  const accsPool = dedupByBC(accsAll); // 데이터 중복행 보호
 
-  // 소재/가격/용량 정규화
   const targetMat = ans.material ? normalizeMaterial(ans.material) : null;
-  const sameMatAll = targetMat
+  const sameMat = targetMat
     ? mainsPool.filter((m) => normalizeMaterial(m.Material) === targetMat)
     : [...mainsPool];
-  const otherMatAll = targetMat
+  const otherMat = targetMat
     ? mainsPool.filter((m) => normalizeMaterial(m.Material) !== targetMat)
     : [];
 
   const targetVol = capacityByAge(ans.ageStage);
   const byVol = (a, b) => {
+    if (!targetVol) return 0;
     const av = typeof a.Volume === "number" ? a.Volume : targetVol;
     const bv = typeof b.Volume === "number" ? b.Volume : targetVol;
     return Math.abs(av - targetVol) - Math.abs(bv - targetVol);
   };
-  sameMatAll.sort(byVol);
-  otherMatAll.sort(byVol);
+  sameMat.sort(byVol);
+  otherMat.sort(byVol);
 
   const range = priceBandToRange(ans.priceBand);
   const inBand = range
     ? (p) => (p.RetailPrice || 0) >= range[0] && (p.RetailPrice || 0) < range[1]
     : () => true;
-  const sameUse = range ? sameMatAll.filter(inBand) : sameMatAll;
-  const otherUse = range ? otherMatAll.filter(inBand) : otherMatAll;
 
-  // ── 젖병/비젖병으로 분리 후 우선순 정렬 ─────────────────────────────
-  const mainsSameMat = sameUse.length ? sameUse : sameMatAll;
-  const mainsOtherMat = otherUse.length ? otherUse : otherMatAll;
+  const sameUse = sameMat.filter(inBand);
+  const otherUse = otherMat.filter(inBand);
 
-  const bottleSame = mainsSameMat.filter(isBottle).sort(byVol);
-  const bottleOther = mainsOtherMat.filter(isBottle).sort(byVol);
-  const nonBottleSame = mainsSameMat.filter((m) => !isBottle(m)).sort(byVol);
-  const nonBottleOther = mainsOtherMat.filter((m) => !isBottle(m)).sort(byVol);
-
-  // 최종 Main 우선순위: 젖병(소재 일치) → 젖병(소재 불일치) → 기타 Main(소재 일치) → 기타 Main(소재 불일치)
-  const orderedMain = [
-    ...bottleSame,
-    ...bottleOther,
-    ...nonBottleSame,
-    ...nonBottleOther,
-  ];
-
-  // ── Main 뒤에 Acc. 붙이기(니플 → 기타 순) ─────────────────────────
+  // ---- 악세서리 재사용/중복 방지
   const usedAcc = new Set();
+
   const accessoriesForMain = (m) => {
     const key = normBC(m._barcode_norm || m.Barcode);
-    const list = accsPool.filter(
-      (a) =>
-        parseAcc(a).includes(key) &&
-        !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
+
+    // 1) 연결된 악세서리 수집
+    const linked = accsPool.filter((a) => parseAcc(a).includes(key));
+    // 2) 바코드 기준 중복 제거(데이터 중복행 방지)
+    const uniqueLinked = dedupByBC(linked);
+    // 3) 이미 사용된 악세서리 제거(여러 메인 연결 시 첫 메인에만 붙임)
+    const fresh = uniqueLinked.filter(
+      (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
     );
-    const nipples = list.filter(isNipple);
-    const others = list.filter((a) => !isNipple(a));
-    nipples.forEach((n) => usedAcc.add(normBC(n._barcode_norm || n.Barcode)));
-    others.forEach((o) => usedAcc.add(normBC(o._barcode_norm || o.Barcode)));
+
+    // 4) 니플 → 기타 정렬
+    const nipples = fresh.filter(isNipple);
+    const others = fresh.filter((a) => !isNipple(a));
+
+    // 5) 이번 메인에 붙이는 순간 usedAcc에 즉시 등록
+    for (const a of [...nipples, ...others]) {
+      usedAcc.add(normBC(a._barcode_norm || a.Barcode));
+    }
     return [...nipples, ...others];
   };
 
-  let ordered = [...orderedMain];
-  for (const m of orderedMain) ordered.push(...accessoriesForMain(m));
+  const pushMainThenAccs = (bucket, outArr) => {
+    for (const m of bucket) {
+      outArr.push(m);
+      outArr.push(...accessoriesForMain(m));
+    }
+  };
 
-  // 매칭되지 않은 나머지 Acc. 추가
-  const remaining = accsPool.filter(
+  const ordered = [];
+  pushMainThenAccs(sameUse.length ? sameUse : sameMat, ordered);
+  pushMainThenAccs(otherUse.length ? otherUse : otherMat, ordered);
+
+  // 남은 악세서리(아무 메인에도 연결되지 않았거나 범위를 벗어난 것)
+  const remainingAccs = accsPool.filter(
     (a) => !usedAcc.has(normBC(a._barcode_norm || a.Barcode))
   );
 
-  // 중복 제거(바코드 기준)
-  const seen = new Set();
-  const out = [];
-  for (const x of [...ordered, ...remaining]) {
-    const bc = normBC(x._barcode_norm || x.Barcode);
-    if (!bc || seen.has(bc)) continue;
-    seen.add(bc);
-    out.push(x);
-  }
-  return out;
+  // 최종 한 번 더 바코드 기준 중복 제거(메인/악세서리 전체)
+  return dedupByBC([...ordered, ...remainingAccs]);
 }
 
 /* ========== App ========== */
