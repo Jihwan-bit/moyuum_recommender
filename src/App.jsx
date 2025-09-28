@@ -197,10 +197,17 @@ function recommend(ans, products) {
   const isStrawCup  = (p) => /(straw|one[\s-]?touch)/.test(name(p)) || /straw|cup/.test(cat(p));
   const isBottleMain = (p) => /bottle/.test(cat(p)) || /bottle/.test(name(p));
 
-  const isNipple = (p) =>
-    (/nipple|teat|젖꼭지|노즐/i.test(String(p?.Name || "")) ||
-      /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(String(p?.Name || ""))) &&
-    /bottle|feeding/i.test(String(p?.Category || "")));
+  // 교체본: 괄호 수를 확정하고 가독성/안정성 개선
+const isNipple = (p) => {
+  const n = String(p?.Name || "");
+  const c = String(p?.Category || "");
+  return (
+    (/nipple|teat|젖꼭지|노즐/i.test(n) ||
+      /ទំពារ|មួកបំបៅ|ចំពុះ/i.test(n)) &&
+    /bottle|feeding/i.test(c)
+  );
+};
+
 
   const volNum = (p) => {
     if (typeof p?.Volume === "number") return p.Volume;
